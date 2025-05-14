@@ -1,0 +1,83 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>评测任务详情</h2>
+    
+    <!-- 任务基本信息 -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="card-title mb-0">基本信息</h5>
+        </div>
+        <div class="card-body">
+            <div class="row">
+                <div class="col-md-6">
+                    <p><strong>任务ID：</strong> {{ task.task_id }}</p>
+                    <p><strong>任务名称：</strong> {{ task.name }}</p>
+                    <p><strong>创建时间：</strong> {{ task.created_at|date:"Y-m-d H:i:s" }}</p>
+                </div>
+                <div class="col-md-6">
+                    <p><strong>状态：</strong> 
+                        {% if task.status == 'pending' %}
+                        <span class="badge bg-warning">等待中</span>
+                        {% elif task.status == 'running' %}
+                        <span class="badge bg-primary">运行中</span>
+                        {% elif task.status == 'completed' %}
+                        <span class="badge bg-success">已完成</span>
+                        {% else %}
+                        <span class="badge bg-danger">失败</span>
+                        {% endif %}
+                    </p>
+                    <p><strong>完成时间：</strong> {{ task.completed_at|date:"Y-m-d H:i:s"|default:"-" }}</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 评测结果 -->
+    {% if task.results.all %}
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="card-title mb-0">评测结果</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>模型标识</th>
+                            <th>准确率</th>
+                            <th>正确数/总数</th>
+                            <th>操作</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for result in task.results.all %}
+                        <tr>
+                            <td>{{ result.provider_identifier }}</td>
+                            <td>{{ result.accuracy|floatformat:4 }}</td>
+                            <td>{{ result.correct_tasks }}/{{ result.total_tasks }}</td>
+                            <td>
+                                <a href="{% url 'evaluation:result_details' task.task_id result.id %}" 
+                                   class="btn btn-sm btn-info">
+                                    <i class="fas fa-list"></i> 详细结果
+                                </a>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+    {% endif %}
+
+    <!-- 返回按钮 -->
+    <div class="mb-4">
+        <a href="{% url 'evaluation:task_list' %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> 返回列表
+        </a>
+    </div>
+</div>
+{% endblock %}

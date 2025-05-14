@@ -1,0 +1,66 @@
+{% extends "base.html" %}
+{% load static %}
+
+{% block content %}
+<div class="container mt-4">
+    <h2>评测结果详情</h2>
+    
+    <!-- 结果基本信息 -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="card-title mb-0">结果信息</h5>
+        </div>
+        <div class="card-body">
+            <p><strong>模型标识：</strong> {{ result.provider_identifier }}</p>
+            <p><strong>准确率：</strong> {{ result.accuracy|floatformat:4 }}</p>
+            <p><strong>正确数/总数：</strong> {{ result.correct_tasks }}/{{ result.total_tasks }}</p>
+        </div>
+    </div>
+
+    <!-- 详细结果列表 -->
+    <div class="card mb-4">
+        <div class="card-header">
+            <h5 class="card-title mb-0">详细评测记录</h5>
+        </div>
+        <div class="card-body">
+            <div class="table-responsive">
+                <table class="table table-striped">
+                    <thead>
+                        <tr>
+                            <th>问题ID</th>
+                            <th>问题</th>
+                            <th>标准答案</th>
+                            <th>模型回答</th>
+                            <th>评测结果</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for item in result_data %}
+                        <tr>
+                            <td>{{ item.task_id }}</td>
+                            <td>{{ item.task_question }}</td>
+                            <td>{{ item.ground_truth }}</td>
+                            <td>{{ item.llm_response }}</td>
+                            <td>
+                                {% if item.is_correct %}
+                                <span class="badge bg-success">正确</span>
+                                {% else %}
+                                <span class="badge bg-danger">错误</span>
+                                {% endif %}
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+
+    <!-- 返回按钮 -->
+    <div class="mb-4">
+        <a href="{% url 'evaluation:task_detail' task.task_id %}" class="btn btn-secondary">
+            <i class="fas fa-arrow-left"></i> 返回任务详情
+        </a>
+    </div>
+</div>
+{% endblock %}

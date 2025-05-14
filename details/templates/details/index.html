@@ -36,7 +36,18 @@
     </style>
 </head>
 <body>
+{% extends 'base.html' %}
 
+{% block title %}语言学数据标注平台{% endblock %}
+
+{% block extra_style %}
+    .action-buttons .btn {
+        margin-right: 5px;
+        margin-bottom: 5px;
+    }
+{% endblock %}
+
+{% block content %}
 <div class="container mt-4">
     <!-- 上半部分：任务详情区 -->
     <div class="card">
@@ -111,6 +122,10 @@
         </div>
     </div>
 </div>
+
+{% endblock %}
+
+{% block extra_scripts %}
 
 <!-- Scripts -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -260,5 +275,8 @@
         }
     }
 </script>
+
+{% endblock %}
+
 </body>
 </html>

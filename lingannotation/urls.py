@@ -24,4 +24,5 @@ urlpatterns = [
     path('', listing.views.index, name='index'),
     path("listing/", include("listing.urls")),
     path('details/', include('details.urls')),
+    path('evaluation/', include('evaluation.urls')),
 ]

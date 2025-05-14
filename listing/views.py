@@ -8,8 +8,16 @@ from pathlib import Path
 import json
 
 def index(request):
-    # 查询所有记录并按更新时间降序排列
-    records = TaskRecord.objects.all().order_by('-updated_at')
+    try:
+        # 尝试获取所有任务记录
+        records = TaskRecord.objects.all().order_by('-task_id')
+        # 即使没有记录，也会返回一个空的 QuerySet，不会抛出异常
+    except Exception as e:
+        # 如果发生异常，记录错误并返回空列表
+        print(f"获取任务记录时出错: {str(e)}")
+        records = []
+    
+    # 无论是否有数据，都正常渲染模板
     return render(request, 'listing/index.html', {'records': records})
 
 def task_create(request):

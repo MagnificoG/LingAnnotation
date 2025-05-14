@@ -1,0 +1,327 @@
+{% extends 'base.html' %}
+
+{% block title %}评测任务列表 - 语言学数据标注平台{% endblock %}
+
+{% block extra_style %}
+    .action-buttons .btn {
+        margin-right: 5px;
+        margin-bottom: 5px;
+    }
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    <!-- 评测任务列表区 -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">评测任务列表</h5>
+            <div class="d-flex gap-3 align-items-center">
+                <div class="d-flex gap-1">
+                    <button class="btn btn-success btn-sm" onclick="createEvaluationTask()">
+                        <i class="fas fa-plus"></i>创建新评测任务
+                    </button>
+                </div>
+            </div>
+        </div>
+        <div class="card-body">
+            <table id="dataTable" class="table table-hover">
+                <thead>
+                <tr>
+                    <th class="text-center font-weight-bold">任务名称</th>
+                    <th class="text-center font-weight-bold">状态</th>
+                    <th class="text-center font-weight-bold">创建时间</th>
+                    <th class="text-center font-weight-bold">完成时间</th>
+                    <th class="text-center font-weight-bold">详情</th>
+                    <th class="text-center font-weight-bold">操作</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% if tasks %}
+                    {% for task in tasks %}
+                        <tr>
+                            <td>{{ task.name }}</td>
+                            <td>{{ task.get_status_display }}</td>
+                            <td>{{ task.created_at }}</td>
+                            <td>{{ task.completed_at|default:"-" }}</td>
+                            <td class="text-center">
+                                <button class="btn btn-sm btn-primary" onclick="viewTaskDetails({{ task.task_id }})">详情</button>
+                            </td>
+                            <td class="text-center">
+                                {% if task.status == 'pending' %}
+                                    <button class="btn btn-sm btn-success" onclick="startEvaluation({{ task.task_id }})">启动</button>
+                                {% endif %}
+                                <button class="btn btn-sm btn-danger" onclick="deleteTask({{ task.task_id }})">删除</button>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center">暂无评测任务，请点击"创建新评测任务"按钮创建任务。</td>
+                    </tr>
+                {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- 创建评测任务模态框 -->
+<div class="modal fade" id="createTaskModal" tabindex="-1" role="dialog" aria-labelledby="createTaskModalLabel" aria-hidden="true">
+    <div class="modal-dialog modal-lg" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="createTaskModalLabel">创建新评测任务</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="evaluationTaskForm">
+                    <div class="form-group">
+                        <label for="taskName">评测任务名称</label>
+                        <input type="text" class="form-control" id="taskName" placeholder="请输入评测任务名称" maxlength="255" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="sourceTask">关联标注任务</label>
+                        <select class="form-control" id="sourceTask" required>
+                            <option value="">请选择关联标注任务</option>
+                            {% for task in annotation_tasks %}
+                                <option value="{{ task.task_id }}">{{ task.task_name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label>选择评测模型</label>
+                        <div id="modelSelections">
+                            <div class="model-selection mb-3 p-3 border rounded">
+                                <div class="form-row">
+                                    <div class="form-group col-md-6">
+                                        <label>提供商</label>
+                                        <select class="form-control provider-select">
+                                            <option value="openai">OpenAI</option>
+                                            <option value="anthropic">Anthropic</option>
+                                            <option value="google">Google</option>
+                                            <option value="other">其他</option>
+                                        </select>
+                                    </div>
+                                    <div class="form-group col-md-6">
+                                        <label>模型名称</label>
+                                        <input type="text" class="form-control model-name" placeholder="例如：gpt-4">
+                                    </div>
+                                </div>
+                                <div class="form-row">
+                                    <div class="form-group col-md-6">
+                                        <label>API密钥</label>
+                                        <input type="password" class="form-control api-key" placeholder="请输入API密钥">
+                                    </div>
+                                    <div class="form-group col-md-6">
+                                        <label>基础URL（可选）</label>
+                                        <input type="text" class="form-control base-url" placeholder="例如：https://api.openai.com">
+                                    </div>
+                                </div>
+                                <button type="button" class="btn btn-sm btn-danger remove-model">删除</button>
+                            </div>
+                        </div>
+                        <button type="button" class="btn btn-sm btn-primary" id="addModelBtn">添加模型</button>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-success" id="submitTaskBtn">创建</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+    // 确保在文档加载完成后执行
+    $(document).ready(function() {
+        // console.log('文档已加载，开始初始化...');
+        
+        $('#dataTable').DataTable({
+            "language": {
+                "url": "//cdn.datatables.net/plug-ins/1.10.25/i18n/Chinese.json"
+            }
+        });
+        
+        // 添加调试信息
+        console.log('找到添加模型按钮:', $('#addModelBtn').length);
+        
+        // 添加模型按钮点击事件
+        $('#addModelBtn').click(function() {
+            console.log('添加模型按钮被点击');
+            const modelTemplate = $('#modelSelections .model-selection').first().clone();
+            console.log('克隆的模板:', modelTemplate.length);
+            modelTemplate.find('input').val('');
+            $('#modelSelections').append(modelTemplate);
+            console.log('模型已添加');
+        });
+        
+        // 如果上面的方法不起作用，尝试使用事件委托
+        $(document).on('click', '#addModelBtn', function() {
+            console.log('通过事件委托触发添加模型');
+            const modelTemplate = $('#modelSelections .model-selection').first().clone();
+            modelTemplate.find('input').val('');
+            $('#modelSelections').append(modelTemplate);
+        });
+        
+        // 删除模型按钮点击事件（使用事件委托）
+        $('#modelSelections').on('click', '.remove-model', function() {
+            if ($('#modelSelections .model-selection').length > 1) {
+                $(this).closest('.model-selection').remove();
+            } else {
+                alert('至少需要保留一个模型');
+            }
+        });
+        
+        // 提交表单
+        $('#submitTaskBtn').click(function() {
+            const taskName = $('#taskName').val().trim();
+            const sourceTaskId = $('#sourceTask').val();
+            
+            if (!taskName) {
+                alert('请输入评测任务名称');
+                return;
+            }
+            
+            if (!sourceTaskId) {
+                alert('请选择关联标注任务');
+                return;
+            }
+            
+            // 收集模型信息
+            const models = [];
+            let isValid = true;
+            
+            $('.model-selection').each(function() {
+                const providerName = $(this).find('.provider-select').val();
+                const modelName = $(this).find('.model-name').val().trim();
+                const apiKey = $(this).find('.api-key').val().trim();
+                const baseUrl = $(this).find('.base-url').val().trim();
+                
+                if (!modelName || !apiKey) {
+                    alert('请填写所有模型的必要信息（模型名称和API密钥）');
+                    isValid = false;
+                    return false;
+                }
+                
+                models.push({
+                    provider_name: providerName,
+                    model_name: modelName,
+                    api_key: apiKey,
+                    base_url: baseUrl || null
+                });
+            });
+            
+            if (!isValid) return;
+            
+            // 显示加载状态
+            const submitBtn = $('#submitTaskBtn');
+            const originalText = submitBtn.html();
+            submitBtn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> 提交中...');
+            
+            // 发送请求
+            $.ajax({
+                url: '/evaluation/api/tasks/',
+                method: 'POST',
+                headers: {
+                    "X-CSRFToken": getCsrfToken(),
+                    "Content-Type": "application/json"
+                },
+                data: JSON.stringify({
+                    name: taskName,
+                    source_task: sourceTaskId,
+                    models: models
+                }),
+                success: function(response) {
+                    alert('评测任务创建成功');
+                    location.reload();
+                },
+                error: function(xhr) {
+                    let errorMsg = '创建失败';
+                    if (xhr.responseJSON && xhr.responseJSON.detail) {
+                        errorMsg += ': ' + xhr.responseJSON.detail;
+                    }
+                    alert(errorMsg);
+                },
+                complete: function() {
+                    submitBtn.prop('disabled', false).html(originalText);
+                }
+            });
+        });
+    });
+    
+    // 创建评测任务
+    function createEvaluationTask() {
+        $('#createTaskModal').modal('show');
+    }
+    
+    // 查看任务详情
+    function viewTaskDetails(taskId) {
+        window.location.href = '/evaluation/task/' + taskId + '/';
+    }
+    
+    // 启动评测
+    function startEvaluation(taskId) {
+        if (confirm('确定要启动此评测任务吗？')) {
+            $.ajax({
+                url: '/evaluation/api/tasks/' + taskId + '/start_evaluation/',
+                method: 'POST',
+                headers: {
+                    "X-CSRFToken": getCsrfToken()
+                },
+                success: function(response) {
+                    alert('评测任务已启动');
+                    location.reload();
+                },
+                error: function(xhr) {
+                    let errorMsg = '启动失败';
+                    if (xhr.responseJSON && xhr.responseJSON.error) {
+                        errorMsg += ': ' + xhr.responseJSON.error;
+                    }
+                    alert(errorMsg);
+                }
+            });
+        }
+    }
+    
+    // 删除任务
+    function deleteTask(taskId) {
+        if (confirm('确定要删除这个评测任务吗？此操作不可恢复！')) {
+            $.ajax({
+                url: '/evaluation/api/tasks/' + taskId + '/',
+                method: 'DELETE',
+                headers: {
+                    "X-CSRFToken": getCsrfToken()
+                },
+                success: function() {
+                    alert('删除成功');
+                    location.reload();
+                },
+                error: function() {
+                    alert('删除失败');
+                }
+            });
+        }
+    }
+    
+    // 获取CSRF令牌
+    function getCsrfToken() {
+        let cookieValue = null;
+        if (document.cookie && document.cookie !== '') {
+            const cookies = document.cookie.split(';');
+            for (let i = 0; i < cookies.length; i++) {
+                const cookie = cookies[i].trim();
+                if (cookie.substring(0, 'csrftoken'.length + 1) === ('csrftoken=')) {
+                    cookieValue = decodeURIComponent(cookie.substring('csrftoken'.length + 1));
+                    break;
+                }
+            }
+        }
+        return cookieValue;
+    }
+</script>
+{% endblock %}

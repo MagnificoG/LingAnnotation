@@ -14,7 +14,7 @@ class DataRecord(models.Model):
 
     class Meta:
         verbose_name = "数据记录"
-        verbose_name_plural = "数据记录""
+        verbose_name_plural = "数据记录"
 """
 class TaskRecord(models.Model):
     task_id = models.AutoField(primary_key=True, verbose_name="任务ID")

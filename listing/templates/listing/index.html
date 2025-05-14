@@ -27,6 +27,18 @@
 </head>
 <body>
 
+{% extends 'base.html' %}
+
+{% block title %}语言学数据标注平台{% endblock %}
+
+{% block extra_style %}
+    .action-buttons .btn {
+        margin-right: 5px;
+        margin-bottom: 5px;
+    }
+{% endblock %}
+
+{% block content %}
 <div class="container mt-4">
     <!-- 任务列表区 -->
     <div class="card">
@@ -51,27 +63,36 @@
             </tr>
             </thead>
             <tbody>
-            {% for record in records %}
+            {% if records %}
+                {% for record in records %}
+                    <tr>
+                    <td contenteditable="true">{{ record.task_name }}</td>
+                    <td contenteditable="true">{{ record.task_description }}</td>
+                    <td contenteditable="true">{{ record.created_at }}</td>
+                    <td contenteditable="true">{{ record.updated_at }}</td>
+                    <td class="text-center">
+                        <button class="btn btn-sm btn-primary" onclick="viewTaskDetails({{ record.task_id }})">详情</button>
+                    </td>
+                    <td class="text-center">
+                        <button class="btn btn-sm btn-danger" onclick="deleteTask(this)">删除</button>
+                        <label class="d-none task-id-label">{{ record.task_id }}</label>
+                    </td>
+                    </tr>
+                {% endfor %}
+            {% else %}
                 <tr>
-                <td contenteditable="true">{{ record.task_name }}</td>
-                <td contenteditable="true">{{ record.task_description }}</td>
-                <td contenteditable="true">{{ record.created_at }}</td>
-                <td contenteditable="true">{{ record.updated_at }}</td>
-                <td class="text-center">
-                    <button class="btn btn-sm btn-primary" onclick="viewTaskDetails({{ record.task_id }})">详情</button>
-                </td>
-                <td class="text-center">
-                    <button class="btn btn-sm btn-danger" onclick="deleteTask(this)">删除</button>
-                    <label class="d-none task-id-label">{{ record.task_id }}</label>
-                </td>
+                    <td colspan="6" class="text-center">暂无任务记录，请点击"新增任务"按钮创建任务。</td>
                 </tr>
-            {% endfor %}
+            {% endif %}
             </tbody>
             </table>
         </div>
     </div>
 </div>
 
+{% endblock %}
+
+{% block extra_scripts %}
 
 <!-- Scripts -->
 <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
@@ -86,7 +107,7 @@
     // 添加新的任务
     function addTask() {
         // 转向到添加任务页面
-        window.location.href = 'listing/task_create/';
+        window.location.href = '/listing/task_create/';
     }
     // 删除任务
     function deleteTask(btn) {
@@ -142,9 +163,12 @@
 
     function viewTaskDetails(taskId) {
         // 转向到任务详情页面
-        window.location.href = 'details/' + taskId + '/';
+        window.location.href = '/details/' + taskId + '/';
     }
 
 </script>
+
+{% endblock %}
+
 </body>
 </html>

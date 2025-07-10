@@ -19,5 +19,5 @@ urlpatterns = [
     path('tasks/<int:task_id>/results/<int:result_id>/details/', views.result_details, name='result_details'),
     path('api/upload/', views.upload_file, name='upload_file'),
     path('model-configs/', views.model_config_list, name='model_config_list'),
-    path('', include(router.urls)),  # Include the router URLs
+    path('', include(router.urls)),
 ]

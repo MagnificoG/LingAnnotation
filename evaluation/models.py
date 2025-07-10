@@ -9,7 +9,7 @@ class ModelConfiguration(models.Model):
     provider_name = models.CharField(max_length=100, verbose_name="供应商")
     model_name = models.CharField(max_length=100, verbose_name="模型名称")
     api_key = models.CharField(max_length=255, verbose_name="API密钥")
-    base_url = models.CharField(max_length=255, null=True, blank=True, verbose_name="基础URL")
+    base_url = models.CharField(max_length=255, null=True, blank=True, verbose_name="URL基本部分")
     is_active = models.BooleanField(default=True, verbose_name="是否启用")
     created_at = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
     updated_at = models.DateTimeField(auto_now=True, verbose_name="更新时间")

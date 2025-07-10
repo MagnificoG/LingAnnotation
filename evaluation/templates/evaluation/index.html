@@ -44,13 +44,13 @@
                             <td>{{ task.created_at }}</td>
                             <td>{{ task.completed_at|default:"-" }}</td>
                             <td class="text-center">
-                                <button class="btn btn-sm btn-primary" onclick="viewTaskDetails({{ task.task_id }})">详情</button>
+                                <button class="btn btn-sm btn-primary view-details-btn" data-task-id="{{ task.task_id }}">详情</button>
                             </td>
                             <td class="text-center">
                                 {% if task.status == 'pending' %}
-                                    <button class="btn btn-sm btn-success" onclick="startEvaluation({{ task.task_id }})">启动</button>
+                                    <button class="btn btn-sm btn-success start-evaluation-btn" data-task-id="{{ task.task_id }}">启动</button>
                                 {% endif %}
-                                <button class="btn btn-sm btn-danger" onclick="deleteTask({{ task.task_id }})">删除</button>
+                                <button class="btn btn-sm btn-danger delete-task-btn" data-task-id="{{ task.task_id }}">删除</button>
                             </td>
                         </tr>
                     {% endfor %}
@@ -93,28 +93,40 @@
                     </div>
                     <div class="form-group">
                         <label>选择评测模型</label>
-                        <div id="modelSelections">
-                            <div class="model-selection mb-3 p-3 border rounded">
-                                <select class="form-control model-config-select" required>
-                                    <option value="">请选择模型配置</option>
-                                    {% for config in model_configs %}
-                                        <option value="{{ config.id }}">{{ config.name }} ({{ config.provider_name }}/{{ config.model_name }})</option>
-                                    {% endfor %}
-                                </select>
+                        {% if model_configs %}
+                            <div id="modelSelections">
+                                <div class="model-selection mb-3 p-3 border rounded">
+                                    <select class="form-control model-config-select" required>
+                                        <option value="">请选择模型配置</option>
+                                        {% for config in model_configs %}
+                                            <option value="{{ config.id }}">{{ config.name }} ({{ config.provider_name }}/{{ config.model_name }})</option>
+                                        {% endfor %}
+                                    </select>
+                                </div>
                             </div>
-                        </div>
-                        <div class="d-flex justify-content-between align-items-center mt-2">
-                            <button type="button" class="btn btn-sm btn-primary" id="addModelBtn">添加模型</button>
-                            <a href="/evaluation/model-configs/" class="btn btn-sm btn-outline-secondary">
-                                <i class="fas fa-cog"></i> 管理模型配置
-                            </a>
-                        </div>
+                            <div class="d-flex justify-content-between align-items-center mt-2">
+                                <a href="/evaluation/model-configs/" class="btn btn-sm btn-outline-primary">
+                                    <i class="fas fa-cog"></i> 管理模型配置
+                                </a>
+                            </div>
+                        {% else %}
+                            <div class="alert alert-warning" role="alert">
+                                <i class="fas fa-exclamation-triangle"></i>
+                                <strong>暂无可用的模型配置</strong><br>
+                                请先创建模型配置才能创建评测任务。
+                                <a href="/evaluation/model-configs/" class="btn btn-sm btn-primary mt-2">
+                                    <i class="fas fa-plus"></i> 创建模型配置
+                                </a>
+                            </div>
+                        {% endif %}
                     </div>
                 </form>
             </div>
             <div class="modal-footer">
                 <button type="button" class="btn btn-secondary" data-dismiss="modal">取消</button>
-                <button type="button" class="btn btn-success" id="submitTaskBtn">创建</button>
+                <button type="button" class="btn btn-success" id="submitTaskBtn" {% if not model_configs %}disabled{% endif %}>
+                    {% if model_configs %}创建{% else %}无可用模型配置{% endif %}
+                </button>
             </div>
         </div>
     </div>
@@ -125,45 +137,37 @@
 <script>
     // 确保在文档加载完成后执行
     $(document).ready(function() {
-        // console.log('文档已加载，开始初始化...');
-        
+        // 初始化数据表格和事件
         $('#dataTable').DataTable({
             "language": {
                 "url": "//cdn.datatables.net/plug-ins/1.10.25/i18n/Chinese.json"
             }
         });
-        
-        // 添加调试信息
-        console.log('找到添加模型按钮:', $('#addModelBtn').length);
-        
-        // 添加模型按钮点击事件
-        $('#addModelBtn').click(function() {
-            const modelTemplate = $('#modelSelections .model-selection').first().clone();
-            modelTemplate.find('select').val('');
-            $('#modelSelections').append(modelTemplate);
-        });
-        
-        // 删除模型按钮点击事件（使用事件委托）
-        $('#modelSelections').on('click', '.remove-model', function() {
-            if ($('#modelSelections .model-selection').length > 1) {
-                $(this).closest('.model-selection').remove();
-            } else {
-                alert('至少需要保留一个模型');
-            }
-        });
+
+        // 绑定提交按钮点击事件
+        document.getElementById('submitTaskBtn').addEventListener('click', handleTaskSubmission);
         
         // 提交表单
         $('#submitTaskBtn').click(function() {
             const taskName = $('#taskName').val().trim();
             const sourceTaskId = $('#sourceTask').val();
             
+            // Enhanced validation
             if (!taskName) {
                 alert('请输入评测任务名称');
+                $('#taskName').focus();
                 return;
             }
             
             if (!sourceTaskId) {
                 alert('请选择关联标注任务');
+                $('#sourceTask').focus();
+                return;
+            }
+            
+            // Check if model configurations are available
+            if ($('.model-config-select').length === 0) {
+                alert('暂无可用的模型配置，请先创建模型配置');
                 return;
             }
             
@@ -175,10 +179,11 @@
                 const configId = $(this).val();
                 if (!configId) {
                     alert('请选择所有模型配置');
+                    $(this).focus();
                     isValid = false;
                     return false;
                 }
-                modelConfigs.push(configId);
+                modelConfigs.push(parseInt(configId));
             });
             
             if (!isValid) return;
@@ -190,7 +195,7 @@
             // 显示加载状态
             const submitBtn = $('#submitTaskBtn');
             const originalText = submitBtn.html();
-            submitBtn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> 提交中...');
+            submitBtn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> 创建中...');
             
             // 发送请求
             $.ajax({
@@ -202,18 +207,38 @@
                 },
                 data: JSON.stringify({
                     name: taskName,
-                    source_task: sourceTaskId,
+                    source_task: parseInt(sourceTaskId),
                     model_configurations: modelConfigs
                 }),
                 success: function(response) {
-                    alert('评测任务创建成功');
+                    alert('评测任务创建成功！');
+                    $('#createTaskModal').modal('hide');
                     location.reload();
                 },
                 error: function(xhr) {
+                    console.error('Error creating task:', xhr);
                     let errorMsg = '创建失败';
-                    if (xhr.responseJSON && xhr.responseJSON.detail) {
-                        errorMsg += ': ' + xhr.responseJSON.detail;
+                    
+                    if (xhr.responseJSON) {
+                        if (xhr.responseJSON.detail) {
+                            errorMsg += ': ' + xhr.responseJSON.detail;
+                        } else if (xhr.responseJSON.error) {
+                            errorMsg += ': ' + xhr.responseJSON.error;
+                        } else if (xhr.responseJSON.name) {
+                            errorMsg += ': ' + xhr.responseJSON.name[0];
+                        } else if (xhr.responseJSON.source_task) {
+                            errorMsg += ': ' + xhr.responseJSON.source_task[0];
+                        } else if (xhr.responseJSON.model_configurations) {
+                            errorMsg += ': ' + xhr.responseJSON.model_configurations[0];
+                        }
+                    } else if (xhr.status === 404) {
+                        errorMsg += ': API端点未找到';
+                    } else if (xhr.status === 403) {
+                        errorMsg += ': 权限不足';
+                    } else if (xhr.status === 500) {
+                        errorMsg += ': 服务器内部错误';
                     }
+                    
                     alert(errorMsg);
                 },
                 complete: function() {
@@ -225,60 +250,128 @@
     
     // 创建评测任务
     function createEvaluationTask() {
+        // 重置表单和状态
+        $('#evaluationTaskForm')[0].reset();
+        $('#modelSelections').html($('#modelSelections .model-selection').first().clone());
+        $('#submitTaskBtn')
+            .prop('disabled', false)
+            .html('创建')
+            .off('click')
+            .on('click', handleTaskSubmission);
         $('#createTaskModal').modal('show');
     }
-    
-    // 查看任务详情
-    function viewTaskDetails(taskId) {
-        window.location.href = '/evaluation/task/' + taskId + '/';
+
+    // 处理任务提交
+    function handleTaskSubmission() {
+        const formData = {
+            name: $('#taskName').val().trim(),
+            source_task: $('#sourceTask').val(),
+            model_configurations: Array.from(document.querySelectorAll('.model-config-select')).map(select => select.value)
+        };
+
+        // 验证表单
+        if (!formData.name || !formData.source_task || formData.model_configurations.some(v => !v)) {
+            alert('请填写所有必填字段并选择至少一个模型配置');
+            return;
+        }
+
+        // 显示加载状态
+        const submitBtn = document.getElementById('submitTaskBtn');
+        submitBtn.disabled = true;
+        submitBtn.innerHTML = '<span class="spinner-border spinner-border-sm"></span> 提交中...';
+
+        // 发送AJAX请求
+        fetch('/evaluation/api/tasks/', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': getCsrfToken()
+            },
+            body: JSON.stringify(formData)
+        })
+        .then(response => {
+            if (!response.ok) throw response;
+            return response.json();
+        })
+        .then(data => {
+            $('#createTaskModal').modal('hide');
+            location.reload();
+        })
+        .catch(async error => {
+            let errorMsg = '请求失败';
+            try {
+                const errorData = await error.json();
+                errorMsg += ': ' + (errorData.detail || errorData.error || JSON.stringify(errorData));
+            } catch {
+                errorMsg += `: HTTP ${error.status} ${error.statusText}`;
+            }
+            alert(errorMsg);
+        })
+        .finally(() => {
+            submitBtn.disabled = false;
+            submitBtn.innerHTML = '创建';
+        });
     }
     
-    // 启动评测
-    function startEvaluation(taskId) {
-        if (confirm('确定要启动此评测任务吗？')) {
-            $.ajax({
-                url: '/evaluation/api/tasks/' + taskId + '/start_evaluation/',
-                method: 'POST',
-                headers: {
-                    "X-CSRFToken": getCsrfToken()
-                },
-                success: function(response) {
+    // 绑定操作按钮事件
+    document.querySelectorAll('.view-details-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            window.location.href = `/evaluation/task/${this.dataset.taskId}/`;
+        });
+    });
+
+    document.querySelectorAll('.start-evaluation-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const taskId = this.dataset.taskId;
+            if (confirm('确定要启动此评测任务吗？')) {
+                fetch(`/evaluation/api/tasks/${taskId}/start_evaluation/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': getCsrfToken()
+                    }
+                })
+                .then(response => {
+                    if (!response.ok) throw response;
                     alert('评测任务已启动');
                     location.reload();
-                },
-                error: function(xhr) {
-                    let errorMsg = '启动失败';
-                    if (xhr.responseJSON && xhr.responseJSON.error) {
-                        errorMsg += ': ' + xhr.responseJSON.error;
+                })
+                .catch(error => {
+                    error.json().then(data => {
+                        alert(`启动失败: ${data.error || '未知错误'}`);
+                    });
+                });
+            }
+        });
+    });
+
+    document.querySelectorAll('.delete-task-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const taskId = this.dataset.taskId;
+            if (confirm('确定要删除这个评测任务吗？此操作不可恢复！')) {
+                fetch(`/evaluation/api/tasks/${taskId}/`, {
+                    method: 'DELETE',
+                    headers: {
+                        'X-CSRFToken': getCsrfToken()
                     }
-                    alert(errorMsg);
-                }
-            });
-        }
-    }
-    
-    // 删除任务
-    function deleteTask(taskId) {
-        if (confirm('确定要删除这个评测任务吗？此操作不可恢复！')) {
-            $.ajax({
-                url: '/evaluation/api/tasks/' + taskId + '/',
-                method: 'DELETE',
-                headers: {
-                    "X-CSRFToken": getCsrfToken()
-                },
-                success: function() {
-                    alert('删除成功');
-                    location.reload();
-                },
-                error: function() {
-                    alert('删除失败');
-                }
-            });
-        }
-    }
+                })
+                .then(response => {
+                    if (response.ok) {
+                        alert('删除成功');
+                        location.reload();
+                    } else {
+                        throw new Error('删除失败');
+                    }
+                })
+                .catch(error => {
+                    alert(error.message);
+                });
+            }
+        });
+    });
     
     // 获取CSRF令牌
     function getCsrfToken() {
+        // First try to get from cookie
         let cookieValue = null;
         if (document.cookie && document.cookie !== '') {
             const cookies = document.cookie.split(';');
@@ -290,6 +383,20 @@
                 }
             }
         }
+        
+        // Fallback: try to get from meta tag or hidden input
+        if (!cookieValue) {
+            const metaToken = $('meta[name=csrf-token]').attr('content');
+            if (metaToken) {
+                cookieValue = metaToken;
+            } else {
+                const hiddenToken = $('[name=csrfmiddlewaretoken]').val();
+                if (hiddenToken) {
+                    cookieValue = hiddenToken;
+                }
+            }
+        }
+        
         return cookieValue;
     }
 </script>

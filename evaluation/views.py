@@ -9,6 +9,7 @@ from django.contrib import messages
 from rest_framework import viewsets, status
 from rest_framework.decorators import action, api_view, parser_classes
 from rest_framework.parsers import MultiPartParser, FormParser
+from rest_framework.parsers import JSONParser
 from rest_framework.response import Response
 
 # 本地应用导入
@@ -40,9 +41,17 @@ def index(request):
     annotation_tasks = TaskRecord.objects.all().order_by('-created_at')
     evaluation_tasks = EvaluationTask.objects.all().order_by('-created_at')
     
+    # Add model configurations with error handling
+    try:
+        model_configs = ModelConfiguration.objects.filter(is_active=True).order_by('-created_at')
+    except Exception as e:
+        model_configs = []
+        messages.warning(request, 'Model configurations unavailable. Please check database setup.')
+    
     return render(request, 'evaluation/index.html', {
         'annotation_tasks': annotation_tasks,
-        'tasks': evaluation_tasks
+        'tasks': evaluation_tasks,
+        'model_configs': model_configs  # Add this missing context
     })
 
 def model_config_list(request):
@@ -74,22 +83,18 @@ class ModelConfigurationViewSet(viewsets.ModelViewSet):
 
 class EvaluationTaskViewSet(viewsets.ModelViewSet):
     queryset = EvaluationTask.objects.all().order_by('-created_at')
-    parser_classes = (MultiPartParser, FormParser)
+    # Add JSONParser to handle JSON data from the frontend
+    parser_classes = (MultiPartParser, FormParser, JSONParser)
     
     def get_serializer_class(self):
         if self.action == 'create':
             return TaskCreateSerializer
         return EvaluationTaskSerializer
-    
+
     def create(self, request, *args, **kwargs):
-        # Parse models data from JSON string
-        models_data = json.loads(request.data.get('models', '[]'))
-        
-        # Create mutable copy of request data
-        data = request.data.copy()
-        data['models'] = models_data
-        
-        serializer = self.get_serializer(data=data)
+        # The TaskCreateSerializer is properly configured to handle 'model_configurations'
+        # via its 'source' argument, so no special data manipulation is needed here.
+        serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         self.perform_create(serializer)
         headers = self.get_success_headers(serializer.data)

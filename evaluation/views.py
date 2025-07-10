@@ -139,7 +139,7 @@ class EvaluationTaskViewSet(viewsets.ModelViewSet):
             
             # 设置结果文件路径
             timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")
-            result_filename = f"evaluation_results_{task.id}_{timestamp}.json"
+            result_filename = f"evaluation_results_{task.task_id}_{timestamp}.json"
             result_path = os.path.join(settings.MEDIA_ROOT, 'evaluation_results', result_filename)
             
             # 确保目录存在
@@ -196,7 +196,7 @@ class EvaluationTaskViewSet(viewsets.ModelViewSet):
             # 如果发生错误，更新任务状态
             task.status = 'failed'
             task.save()
-            print(f"评测任务 {task.id} 失败: {str(e)}")
+            print(f"评测任务 {task.task_id} 失败: {str(e)}")
 
 # 修改文件上传视图以使用Django风格的响应
 @api_view(['POST'])

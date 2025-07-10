@@ -78,7 +78,7 @@
             
             // 发送请求
             $.ajax({
-                url: '/listing/create_complete/',
+                url: '/listing/{{ task_id }}/edit/',
                 method: 'POST',
                 headers: {
                     "X-CSRFToken": getCookie("csrftoken"),

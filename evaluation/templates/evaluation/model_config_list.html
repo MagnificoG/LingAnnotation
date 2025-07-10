@@ -1,0 +1,242 @@
+{% extends 'base.html' %}
+
+{% block title %}模型配置管理 - 语言学数据标注平台{% endblock %}
+
+{% block extra_style %}
+    .action-buttons .btn {
+        margin-right: 5px;
+        margin-bottom: 5px;
+    }
+{% endblock %}
+
+{% block content %}
+<div class="container mt-4">
+    {% if messages %}
+    <div class="messages">
+        {% for message in messages %}
+        <div class="alert alert-{{ message.tags }}">
+            {{ message }}
+        </div>
+        {% endfor %}
+    </div>
+    {% endif %}
+    
+    <!-- 模型配置列表区 -->
+    <div class="card">
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <h5 class="mb-0">模型配置列表</h5>
+            <div class="d-flex gap-3 align-items-center">
+                <button class="btn btn-success btn-sm" onclick="createModelConfig()">
+                    <i class="fas fa-plus"></i> 添加模型配置
+                </button>
+            </div>
+        </div>
+        <div class="card-body">
+            <table id="dataTable" class="table table-hover">
+                <thead>
+                <tr>
+                    <th class="text-center font-weight-bold">配置名称</th>
+                    <th class="text-center font-weight-bold">供应商</th>
+                    <th class="text-center font-weight-bold">模型名称</th>
+                    <th class="text-center font-weight-bold">基础URL</th>
+                    <th class="text-center font-weight-bold">状态</th>
+                    <th class="text-center font-weight-bold">操作</th>
+                </tr>
+                </thead>
+                <tbody>
+                {% if model_configs %}
+                    {% for config in model_configs %}
+                        <tr>
+                            <td>{{ config.name }}</td>
+                            <td>{{ config.provider_name }}</td>
+                            <td>{{ config.model_name }}</td>
+                            <td>{{ config.base_url|default:"-" }}</td>
+                            <td>{{ config.is_active|yesno:"启用,禁用" }}</td>
+                            <td class="text-center">
+                                <button class="btn btn-sm btn-primary" onclick="editModelConfig('{{ config.id }}')">编辑</button>
+                                <button class="btn btn-sm btn-danger" onclick="deleteModelConfig('{{ config.id }}')">删除</button>
+                            </td>
+                        </tr>
+                    {% endfor %}
+                {% else %}
+                    <tr>
+                        <td colspan="6" class="text-center">
+                            {% if messages %}
+                                请先运行数据库迁移，然后添加模型配置。
+                            {% else %}
+                                暂无模型配置，请点击"添加模型配置"按钮创建。
+                            {% endif %}
+                        </td>
+                    </tr>
+                {% endif %}
+                </tbody>
+            </table>
+        </div>
+    </div>
+</div>
+
+<!-- 创建/编辑模型配置模态框 -->
+<div class="modal fade" id="modelConfigModal" tabindex="-1" role="dialog" aria-labelledby="modelConfigModalLabel" aria-hidden="true">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="modelConfigModalLabel">添加模型配置</h5>
+                <button type="button" class="close" data-dismiss="modal" aria-label="Close">
+                    <span aria-hidden="true">&times;</span>
+                </button>
+            </div>
+            <div class="modal-body">
+                <form id="modelConfigForm">
+                    <input type="hidden" id="configId">
+                    <div class="form-group">
+                        <label for="configName">配置名称</label>
+                        <input type="text" class="form-control" id="configName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="providerName">供应商</label>
+                        <select class="form-control" id="providerName" required>
+                            {% for provider in providers %}
+                                <option value="{{ provider.id }}">{{ provider.name }}</option>
+                            {% endfor %}
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="modelName">模型名称</label>
+                        <input type="text" class="form-control" id="modelName" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="apiKey">API密钥</label>
+                        <input type="password" class="form-control" id="apiKey" required>
+                    </div>
+                    <div class="form-group">
+                        <label for="baseUrl">基础URL（可选）</label>
+                        <input type="text" class="form-control" id="baseUrl">
+                    </div>
+                    <div class="form-check">
+                        <input type="checkbox" class="form-check-input" id="isActive" checked>
+                        <label class="form-check-label" for="isActive">启用</label>
+                    </div>
+                </form>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-secondary" data-dismiss="modal">取消</button>
+                <button type="button" class="btn btn-success" onclick="saveModelConfig()">保存</button>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+$(document).ready(function() {
+    if ($('#dataTable tbody tr').length > 1) {
+        $('#dataTable').DataTable({
+            "language": {
+                "url": "//cdn.datatables.net/plug-ins/1.10.25/i18n/Chinese.json"
+            }
+        });
+    }
+});
+
+function createModelConfig() {
+    $('#modelConfigModalLabel').text('添加模型配置');
+    $('#configId').val('');
+    $('#modelConfigForm')[0].reset();
+    $('#modelConfigModal').modal('show');
+}
+
+function editModelConfig(configId) {
+    $('#modelConfigModalLabel').text('编辑模型配置');
+    
+    // 获取配置详情
+    $.ajax({
+        url: '/evaluation/api/model-configs/' + configId + '/',
+        method: 'GET',
+        success: function(config) {
+            $('#configId').val(config.id);
+            $('#configName').val(config.name);
+            $('#providerName').val(config.provider_name);
+            $('#modelName').val(config.model_name);
+            $('#baseUrl').val(config.base_url);
+            $('#isActive').prop('checked', config.is_active);
+            $('#modelConfigModal').modal('show');
+        },
+        error: function(xhr) {
+            alert('获取配置信息失败: ' + (xhr.responseJSON?.detail || '未知错误'));
+        }
+    });
+}
+
+function saveModelConfig() {
+    const configId = $('#configId').val();
+    const data = {
+        name: $('#configName').val(),
+        provider_name: $('#providerName').val(),
+        model_name: $('#modelName').val(),
+        api_key: $('#apiKey').val(),
+        base_url: $('#baseUrl').val() || null,
+        is_active: $('#isActive').is(':checked')
+    };
+    
+    const method = configId ? 'PUT' : 'POST';
+    const url = '/evaluation/api/model-configs/' + (configId ? configId + '/' : '');
+    
+    $.ajax({
+        url: url,
+        method: method,
+        headers: {
+            'X-CSRFToken': getCookie('csrftoken'),
+            'Content-Type': 'application/json'
+        },
+        data: JSON.stringify(data),
+        success: function() {
+            $('#modelConfigModal').modal('hide');
+            location.reload();
+        },
+        error: function(xhr) {
+            let errorMsg = '保存失败';
+            if (xhr.responseJSON?.detail) {
+                errorMsg += ': ' + xhr.responseJSON.detail;
+            } else if (xhr.status === 500) {
+                errorMsg += ': 服务器错误，请确保已运行数据库迁移';
+            }
+            alert(errorMsg);
+        }
+    });
+}
+
+function deleteModelConfig(configId) {
+    if (confirm('确定要删除这个模型配置吗？')) {
+        $.ajax({
+            url: '/evaluation/api/model-configs/' + configId + '/',
+            method: 'DELETE',
+            headers: {
+                'X-CSRFToken': getCookie('csrftoken')
+            },
+            success: function() {
+                location.reload();
+            },
+            error: function(xhr) {
+                alert('删除失败: ' + (xhr.responseJSON?.detail || '未知错误'));
+            }
+        });
+    }
+}
+
+function getCookie(name) {
+    let cookieValue = null;
+    if (document.cookie && document.cookie !== '') {
+        const cookies = document.cookie.split(';');
+        for (let i = 0; i < cookies.length; i++) {
+            const cookie = cookies[i].trim();
+            if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                break;
+            }
+        }
+    }
+    return cookieValue;
+}
+</script>
+{% endblock %} 

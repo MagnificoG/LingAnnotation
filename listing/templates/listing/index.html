@@ -43,10 +43,10 @@
     <!-- 任务列表区 -->
     <div class="card">
         <div class="card-header d-flex justify-content-between align-items-center">
-    <h5 class="mb-0">任务列表</h5>
+    <h5 class="mb-0">数据集列表</h5>
     <div class="d-flex gap-3 align-items-center"> <!-- 修改了这里 -->
         <div class="d-flex gap-1"> <!-- 新增按钮容器 -->
-            <button class="btn btn-success btn-sm" onclick="addTask()">+ 新增任务</button>
+            <button class="btn btn-success btn-sm" onclick="addTask()">+ 新增数据集</button>
         </div>
     </div>
 </div>
@@ -54,8 +54,8 @@
             <table id="dataTable" class="table table-hover">
             <thead>
             <tr>
-                <th class="text-center font-weight-bold">任务名称</th>
-                <th class="text-center font-weight-bold">任务描述</th>
+                <th class="text-center font-weight-bold">数据集名称</th>
+                <th class="text-center font-weight-bold">数据集描述</th>
                 <th class="text-center font-weight-bold">创建时间</th>
                 <th class="text-center font-weight-bold">更新时间</th>
                 <th class="text-center font-weight-bold">详情</th>
@@ -81,7 +81,7 @@
                 {% endfor %}
             {% else %}
                 <tr>
-                    <td colspan="6" class="text-center">暂无任务记录，请点击"新增任务"按钮创建任务。</td>
+                    <td colspan="6" class="text-center">暂无数据集记录，请点击"新增数据集"按钮创建数据集。</td>
                 </tr>
             {% endif %}
             </tbody>
@@ -104,18 +104,18 @@
         $('#dataTable').DataTable();
     });
 
-    // 添加新的任务
+    // 添加新的数据集
     function addTask() {
-        // 转向到添加任务页面
+        // 转向到添加数据集页面
         window.location.href = '/listing/task_create/';
     }
-    // 删除任务
+    // 删除数据集
     function deleteTask(btn) {
         // 获取当前行的id
         var taskId = $(btn).siblings('.task-id-label').text();
     
         // 确认删除
-        if (confirm('确定要删除这个任务吗？请备份任务相关的数据！')) {
+        if (confirm('确定要删除这个数据集吗？请备份数据集相关的数据！')) {
             // 向后端发送删除请求
             // Get CSRF token from cookie
             function getCookie(name) {
@@ -163,7 +163,7 @@
 
     function viewTaskDetails(taskId) {
         // 转向到任务详情页面
-        window.location.href = '/details/' + taskId + '/';
+        window.location.href = '/listing/' + taskId + '/';
     }
 
 </script>

@@ -1,8 +1,9 @@
 # Django 核心导入
-from django.shortcuts import render  # 添加这行
+from django.shortcuts import render
 from django.conf import settings
 from django.utils import timezone
 from django.views.generic import TemplateView
+from django.contrib import messages
 
 # Django REST framework 导入
 from rest_framework import viewsets, status
@@ -11,13 +12,19 @@ from rest_framework.parsers import MultiPartParser, FormParser
 from rest_framework.response import Response
 
 # 本地应用导入
-from .models import EvaluationTask, ModelSelection, EvaluationResult
-from .serializers import EvaluationTaskSerializer, TaskCreateSerializer
+from .models import EvaluationTask, ModelSelection, EvaluationResult, ModelConfiguration
+from .serializers import (
+    EvaluationTaskSerializer, 
+    TaskCreateSerializer,
+    ModelConfigurationSerializer
+)
+from listing.models import TaskRecord
 
 # 系统库导入
 import os
 import uuid
 import threading
+import json
 
 from .services.evaluation_service import (
     DataLoader,
@@ -27,17 +34,66 @@ from .services.evaluation_service import (
     EvaluationRunner
 )
 
-# 用于渲染模板的视图 - 移除Vue.js相关
+# 用于渲染模板的视图
 def index(request):
-    return render(request, 'evaluation/index.html')
+    # Fetch all available annotation tasks from the listing module
+    annotation_tasks = TaskRecord.objects.all().order_by('-created_at')
+    evaluation_tasks = EvaluationTask.objects.all().order_by('-created_at')
+    
+    return render(request, 'evaluation/index.html', {
+        'annotation_tasks': annotation_tasks,
+        'tasks': evaluation_tasks
+    })
+
+def model_config_list(request):
+    """View for listing and managing model configurations"""
+    try:
+        # Try to get configurations
+        model_configs = ModelConfiguration.objects.all().order_by('-created_at')
+    except Exception as e:
+        # Handle any database errors (including missing tables)
+        model_configs = []
+        if not request.session.get('db_error_shown'):
+            messages.warning(request, 'Database setup required. Please run migrations first: python manage.py migrate')
+            request.session['db_error_shown'] = True
+    
+    return render(request, 'evaluation/model_config_list.html', {
+        'model_configs': model_configs,
+        'providers': [
+            {'id': 'openai', 'name': 'OpenAI'},
+            {'id': 'anthropic', 'name': 'Anthropic'},
+            {'id': 'google', 'name': 'Google'},
+            {'id': 'other', 'name': 'Other'}
+        ]
+    })
+
+class ModelConfigurationViewSet(viewsets.ModelViewSet):
+    """API endpoint for managing model configurations"""
+    queryset = ModelConfiguration.objects.all().order_by('-created_at')
+    serializer_class = ModelConfigurationSerializer
 
 class EvaluationTaskViewSet(viewsets.ModelViewSet):
     queryset = EvaluationTask.objects.all().order_by('-created_at')
+    parser_classes = (MultiPartParser, FormParser)
     
     def get_serializer_class(self):
         if self.action == 'create':
             return TaskCreateSerializer
         return EvaluationTaskSerializer
+    
+    def create(self, request, *args, **kwargs):
+        # Parse models data from JSON string
+        models_data = json.loads(request.data.get('models', '[]'))
+        
+        # Create mutable copy of request data
+        data = request.data.copy()
+        data['models'] = models_data
+        
+        serializer = self.get_serializer(data=data)
+        serializer.is_valid(raise_exception=True)
+        self.perform_create(serializer)
+        headers = self.get_success_headers(serializer.data)
+        return Response(serializer.data, status=status.HTTP_201_CREATED, headers=headers)
     
     @action(detail=True, methods=['post'])
     def start_evaluation(self, request, pk=None):
@@ -61,8 +117,7 @@ class EvaluationTaskViewSet(viewsets.ModelViewSet):
     def _run_evaluation(self, task):
         try:
             # 准备评测所需的组件
-            excel_path = task.excel_file.path
-            data_loader = DataLoader(excel_path)
+            data_loader = DataLoader(task)
             data_transformer = DataTransformer()
             evaluator = Evaluator()
             
@@ -80,7 +135,10 @@ class EvaluationTaskViewSet(viewsets.ModelViewSet):
             # 设置结果文件路径
             timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")
             result_filename = f"evaluation_results_{task.id}_{timestamp}.json"
-            result_path = os.path.join('/home/shawn/lmeval/results', result_filename)
+            result_path = os.path.join(settings.MEDIA_ROOT, 'evaluation_results', result_filename)
+            
+            # 确保目录存在
+            os.makedirs(os.path.dirname(result_path), exist_ok=True)
             
             # 创建并运行评测
             runner = EvaluationRunner(
@@ -99,7 +157,7 @@ class EvaluationTaskViewSet(viewsets.ModelViewSet):
             # 更新任务状态和结果
             task.status = 'completed'
             task.completed_at = timezone.now()
-            task.result_file = f"results/{result_filename}"
+            task.result_file = f"evaluation_results/{result_filename}"
             task.save()
             
             # 保存评测结果
@@ -210,49 +268,30 @@ def stop_task(request, task_id):
         return Response(status=status.HTTP_404_NOT_FOUND)
 
 # 其他视图保持不变
-@api_view(['GET'])
+@action(detail=True, methods=['get'])
 def task_results(request, task_id):
     """获取任务结果"""
-    # 实现获取任务结果的逻辑
-    results = [
-        {
-            'id': 1,
-            'provider_identifier': '通义千问__qwen-turbo',
-            'accuracy': 0.85,
-            'correct_tasks': 85,
-            'total_tasks': 100
-        },
-        {
-            'id': 2,
-            'provider_identifier': 'DeepSeek__deepseek-chat',
-            'accuracy': 0.78,
-            'correct_tasks': 78,
-            'total_tasks': 100
-        }
-    ]
-    return Response(results)
+    try:
+        task = EvaluationTask.objects.get(pk=task_id)
+        results = task.results.all()
+        return Response([{
+            'id': result.id,
+            'provider_identifier': result.provider_identifier,
+            'accuracy': result.accuracy,
+            'correct_tasks': result.correct_tasks,
+            'total_tasks': result.total_tasks
+        } for result in results])
+    except EvaluationTask.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)
 
-@api_view(['GET'])
+@action(detail=True, methods=['get'])
 def result_details(request, task_id, result_id):
     """获取结果详情"""
-    # 实现获取结果详情的逻辑
-    details = [
-        {
-            'task_id': 1,
-            'task_question': '示例问题1',
-            'ground_truth': '标准答案1',
-            'llm_response': '模型回答1',
-            'is_correct': True
-        },
-        {
-            'task_id': 2,
-            'task_question': '示例问题2',
-            'ground_truth': '标准答案2',
-            'llm_response': '模型回答2',
-            'is_correct': False
-        }
-    ]
-    return Response(details)
+    try:
+        result = EvaluationResult.objects.get(task_id=task_id, id=result_id)
+        return Response(result.get_result_data())
+    except EvaluationResult.DoesNotExist:
+        return Response(status=status.HTTP_404_NOT_FOUND)
 
 # 数据集管理相关视图
 @api_view(['GET', 'POST'])

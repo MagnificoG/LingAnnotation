@@ -77,52 +77,38 @@
             </div>
             <div class="modal-body">
                 <form id="evaluationTaskForm">
-                    <div class="form-group">
-                        <label for="taskName">评测任务名称</label>
-                        <input type="text" class="form-control" id="taskName" placeholder="请输入评测任务名称" maxlength="255" required>
+                    <div class="form-group mb-3">
+                        <label for="taskName" class="form-label">评测任务名称</label>
+                        <input type="text" class="form-control" id="taskName" placeholder="请输入评测任务名称" maxlength="255" required />
                     </div>
-                    <div class="form-group">
-                        <label for="sourceTask">关联标注任务</label>
+                    <div class="form-group mb-3">
+                        <label for="sourceTask" class="form-label">关联标注任务</label>
                         <select class="form-control" id="sourceTask" required>
                             <option value="">请选择关联标注任务</option>
                             {% for task in annotation_tasks %}
                                 <option value="{{ task.task_id }}">{{ task.task_name }}</option>
                             {% endfor %}
                         </select>
+                        <small class="form-text text-muted">选择要评测的数据集任务</small>
                     </div>
                     <div class="form-group">
                         <label>选择评测模型</label>
                         <div id="modelSelections">
                             <div class="model-selection mb-3 p-3 border rounded">
-                                <div class="form-row">
-                                    <div class="form-group col-md-6">
-                                        <label>提供商</label>
-                                        <select class="form-control provider-select">
-                                            <option value="openai">OpenAI</option>
-                                            <option value="anthropic">Anthropic</option>
-                                            <option value="google">Google</option>
-                                            <option value="other">其他</option>
-                                        </select>
-                                    </div>
-                                    <div class="form-group col-md-6">
-                                        <label>模型名称</label>
-                                        <input type="text" class="form-control model-name" placeholder="例如：gpt-4">
-                                    </div>
-                                </div>
-                                <div class="form-row">
-                                    <div class="form-group col-md-6">
-                                        <label>API密钥</label>
-                                        <input type="password" class="form-control api-key" placeholder="请输入API密钥">
-                                    </div>
-                                    <div class="form-group col-md-6">
-                                        <label>基础URL（可选）</label>
-                                        <input type="text" class="form-control base-url" placeholder="例如：https://api.openai.com">
-                                    </div>
-                                </div>
-                                <button type="button" class="btn btn-sm btn-danger remove-model">删除</button>
+                                <select class="form-control model-config-select" required>
+                                    <option value="">请选择模型配置</option>
+                                    {% for config in model_configs %}
+                                        <option value="{{ config.id }}">{{ config.name }} ({{ config.provider_name }}/{{ config.model_name }})</option>
+                                    {% endfor %}
+                                </select>
                             </div>
                         </div>
-                        <button type="button" class="btn btn-sm btn-primary" id="addModelBtn">添加模型</button>
+                        <div class="d-flex justify-content-between align-items-center mt-2">
+                            <button type="button" class="btn btn-sm btn-primary" id="addModelBtn">添加模型</button>
+                            <a href="/evaluation/model-configs/" class="btn btn-sm btn-outline-secondary">
+                                <i class="fas fa-cog"></i> 管理模型配置
+                            </a>
+                        </div>
                     </div>
                 </form>
             </div>
@@ -152,19 +138,8 @@
         
         // 添加模型按钮点击事件
         $('#addModelBtn').click(function() {
-            console.log('添加模型按钮被点击');
             const modelTemplate = $('#modelSelections .model-selection').first().clone();
-            console.log('克隆的模板:', modelTemplate.length);
-            modelTemplate.find('input').val('');
-            $('#modelSelections').append(modelTemplate);
-            console.log('模型已添加');
-        });
-        
-        // 如果上面的方法不起作用，尝试使用事件委托
-        $(document).on('click', '#addModelBtn', function() {
-            console.log('通过事件委托触发添加模型');
-            const modelTemplate = $('#modelSelections .model-selection').first().clone();
-            modelTemplate.find('input').val('');
+            modelTemplate.find('select').val('');
             $('#modelSelections').append(modelTemplate);
         });
         
@@ -192,31 +167,25 @@
                 return;
             }
             
-            // 收集模型信息
-            const models = [];
+            // 收集模型配置ID
+            const modelConfigs = [];
             let isValid = true;
             
-            $('.model-selection').each(function() {
-                const providerName = $(this).find('.provider-select').val();
-                const modelName = $(this).find('.model-name').val().trim();
-                const apiKey = $(this).find('.api-key').val().trim();
-                const baseUrl = $(this).find('.base-url').val().trim();
-                
-                if (!modelName || !apiKey) {
-                    alert('请填写所有模型的必要信息（模型名称和API密钥）');
+            $('.model-config-select').each(function() {
+                const configId = $(this).val();
+                if (!configId) {
+                    alert('请选择所有模型配置');
                     isValid = false;
                     return false;
                 }
-                
-                models.push({
-                    provider_name: providerName,
-                    model_name: modelName,
-                    api_key: apiKey,
-                    base_url: baseUrl || null
-                });
+                modelConfigs.push(configId);
             });
             
             if (!isValid) return;
+            if (modelConfigs.length === 0) {
+                alert('请至少选择一个模型配置');
+                return;
+            }
             
             // 显示加载状态
             const submitBtn = $('#submitTaskBtn');
@@ -234,7 +203,7 @@
                 data: JSON.stringify({
                     name: taskName,
                     source_task: sourceTaskId,
-                    models: models
+                    model_configurations: modelConfigs
                 }),
                 success: function(response) {
                     alert('评测任务创建成功');

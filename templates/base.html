@@ -4,6 +4,7 @@
     <title>{% block title %}语言学数据标注平台{% endblock %}</title>
     <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/4.6.0/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.datatables.net/1.10.25/css/dataTables.bootstrap4.min.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/5.15.4/css/all.min.css">
     {% block extra_css %}{% endblock %}
     <style>
         .spinner-border {
@@ -23,26 +24,45 @@
         .input-group-text {
             background-color: #f8f9fa;
         }
+
+        .dropdown-menu {
+            min-width: 200px;
+        }
+
+        .nav-item .dropdown-menu {
+            margin-top: 0;
+        }
         {% block extra_style %}{% endblock %}
     </style>
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-dark bg-dark mb-4">
         <div class="container">
-            <a class="navbar-brand" href="/">语料标注系统</a>
+            <a class="navbar-brand" href="/">面向LLM评测的语料标注系统</a>
             <button class="navbar-toggler" type="button" data-toggle="collapse" data-target="#navbarNav" aria-controls="navbarNav" aria-expanded="false" aria-label="Toggle navigation">
                 <span class="navbar-toggler-icon"></span>
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav">
                     <li class="nav-item">
-                        <a class="nav-link" href="/listing/">任务列表</a>
+                        <a class="nav-link" href="/listing/">数据集列表</a>
                     </li>
                     <li class="nav-item">
-                        <a class="nav-link" href="/listing/task_create/">创建任务</a>
+                        <a class="nav-link" href="/listing/task_create/">创建数据集</a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="/evaluation/">评估任务</a>
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" id="evaluationDropdown" role="button" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false">
+                            评估管理
+                        </a>
+                        <div class="dropdown-menu" aria-labelledby="evaluationDropdown">
+                            <a class="dropdown-item" href="/evaluation/">
+                                <i class="fas fa-tasks"></i> 评估任务
+                            </a>
+                            <div class="dropdown-divider"></div>
+                            <a class="dropdown-item" href="/evaluation/model-configs/">
+                                <i class="fas fa-cogs"></i> 模型配置
+                            </a>
+                        </div>
                     </li>
                 </ul>
             </div>

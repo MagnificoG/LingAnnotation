@@ -2,7 +2,7 @@
 <html>
 
 <head>
-    <title>任务详情 - 语言学数据标注平台</title>
+    <title>数据集详情 - 语言学数据标注平台</title>
     <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/4.6.0/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.datatables.net/1.10.25/css/dataTables.bootstrap4.min.css">
     <style>
@@ -52,7 +52,7 @@
     <!-- 上半部分：任务详情区 -->
     <div class="card">
         <div class="card-header">
-            <h5 class="mb-0">任务详情</h5>
+            <h5 class="mb-0">数据集详情</h5>
         </div>
         <div class="card-body">
             <div class="row">
@@ -84,7 +84,7 @@
                         <i class="fas fa-download"></i> 下载数据
                     </button>
                     <button class="btn btn-danger" onclick="deleteTask({{ task.task_id }})">
-                        <i class="fas fa-trash"></i> 删除任务
+                        <i class="fas fa-trash"></i> 删除数据
                     </button>
                 </div>
             </div>
@@ -174,7 +174,7 @@
                 
                 // 发送AJAX请求上传文件
                 $.ajax({
-                    url: '/details/upload/' + taskId + '/',
+                    url: '/listing/' + taskId + '/upload/',
                     type: 'POST',
                     data: formData,
                     processData: false,
@@ -196,17 +196,17 @@
     
     // 编辑标签
     function editLabels(taskId) {
-        window.location.href = '/listing/task/' + taskId + '/labels/';
+        window.location.href = '/listing/' + taskId + '/labels/';
     }
     
     // 修改任务详情
     function editTaskDetails(taskId) {
-        window.location.href = '/details/info_edit/' + taskId + '/';
+        window.location.href = '/listing/' + taskId + '/edit/';
     }
     
     // 下载数据
     function downloadData(taskId) {
-        window.location.href = '/details/download/' + taskId + '/';
+        window.location.href = '/listing/' + taskId + '/download/';
     }
     
     // 删除任务
@@ -241,7 +241,7 @@
     
     // 查看语料详情
     function viewItemDetails(taskId, itemId) {
-        window.location.href = '/listing/task/' + taskId + '/item/' + itemId + '/';
+        window.location.href = '/listing/' + taskId + '/items/' + itemId + '/';
     }
 
     // 删除item

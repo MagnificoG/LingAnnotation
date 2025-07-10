@@ -2,7 +2,7 @@
 <html>
 
 <head>
-    <title>创建新任务 - 语言学数据标注平台</title>
+    <title>创建新数据集 - 语言学数据标注平台</title>
     <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/4.6.0/css/bootstrap.min.css">
     <link rel="stylesheet" href="https://cdn.datatables.net/1.10.25/css/dataTables.bootstrap4.min.css">
     <style>
@@ -47,17 +47,17 @@
     <div class="container mt-4">
         <div class="card">
             <div class="card-header d-flex justify-content-between align-items-center">
-                <h5 class="mb-0">创建新任务</h5>
+                <h5 class="mb-0">创建新数据集</h5>
             </div>
             <div class="card-body">
                 <form id="taskForm">
                     <div class="form-group">
-                        <label for="taskName">任务名称（不超过200字）</label>
-                        <input type="text" class="form-control" id="taskName" placeholder="请输入任务名称" maxlength="200" required style="font-size: 16px;">
+                        <label for="taskName">数据集名称（不超过200字）</label>
+                        <input type="text" class="form-control" id="taskName" placeholder="请输入数据集名称" maxlength="200" required style="font-size: 16px;">
                     </div>
                     <div class="form-group">
-                        <label for="taskDescription">任务描述</label>
-                        <textarea class="form-control form-control-lg" id="taskDescription" placeholder="请输入任务描述" rows="5" style="font-size: 16px;"></textarea>
+                        <label for="taskDescription">数据集描述</label>
+                        <textarea class="form-control form-control-lg" id="taskDescription" placeholder="请输入数据集描述" rows="5" style="font-size: 16px;"></textarea>
                     </div>
                     <div class="d-flex justify-content-end mt-4">
                         <button type="button" class="btn btn-danger mr-2" onclick="cancelTask()">取消</button>
@@ -77,14 +77,14 @@
     <script src="https://cdn.datatables.net/1.10.25/js/jquery.dataTables.min.js"></script>
     <script src="https://cdn.datatables.net/1.10.25/js/dataTables.bootstrap4.min.js"></script>
     <script>
-        // 提交任务
+        // 提交数据集
         function submitTask() {
             const taskName = $('#taskName').val().trim();
             const taskDescription = $('#taskDescription').val().trim();
             
             // 验证表单
             if (!taskName) {
-                alert('请输入任务名称');
+                alert('请输入数据集名称');
                 return;
             }
             
@@ -107,7 +107,7 @@
                 }),
                 success: function(response) {
                     if (response.status === 'success') {
-                        alert('任务创建成功');
+                        alert('数据集创建成功');
                         window.location.href = '/';
                     } else {
                         alert('创建失败: ' + response.message);
@@ -122,9 +122,9 @@
             });
         }
         
-        // 取消创建任务
+        // 取消创建数据集
         function cancelTask() {
-            if (confirm('确定要取消创建任务吗？所有已填写的内容将丢失。')) {
+            if (confirm('确定要取消创建数据集吗？所有已填写的内容将丢失。')) {
                 window.location.href = '/';
             }
         }

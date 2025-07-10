@@ -17,12 +17,18 @@ Including another URLconf
 
 from django.contrib import admin
 from django.urls import path, include
+from django.views.generic.base import RedirectView
 import listing.views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
     path('', listing.views.index, name='index'),
     path("listing/", include("listing.urls")),
-    path('details/', include('details.urls')),
     path('evaluation/', include('evaluation.urls')),
+    
+    # Temporary redirects for backward compatibility
+    path('details/<int:task_id>/', RedirectView.as_view(url='/listing/%(task_id)s/', permanent=True)),
+    path('details/<int:task_id>/upload/', RedirectView.as_view(url='/listing/%(task_id)s/upload/', permanent=True)),
+    path('details/<int:task_id>/download/', RedirectView.as_view(url='/listing/%(task_id)s/download/', permanent=True)),
+    path('details/<int:task_id>/edit/', RedirectView.as_view(url='/listing/%(task_id)s/edit/', permanent=True)),
 ]

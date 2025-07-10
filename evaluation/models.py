@@ -1,5 +1,26 @@
 from django.db import models
 from listing.models import TaskRecord
+import json
+from pathlib import Path
+
+class ModelConfiguration(models.Model):
+    """Model configuration for evaluation tasks"""
+    name = models.CharField(max_length=255, verbose_name="配置名称")
+    provider_name = models.CharField(max_length=100, verbose_name="供应商")
+    model_name = models.CharField(max_length=100, verbose_name="模型名称")
+    api_key = models.CharField(max_length=255, verbose_name="API密钥")
+    base_url = models.CharField(max_length=255, null=True, blank=True, verbose_name="基础URL")
+    is_active = models.BooleanField(default=True, verbose_name="是否启用")
+    created_at = models.DateTimeField(auto_now_add=True, verbose_name="创建时间")
+    updated_at = models.DateTimeField(auto_now=True, verbose_name="更新时间")
+    
+    class Meta:
+        verbose_name = "模型配置"
+        verbose_name_plural = "模型配置"
+        ordering = ['-created_at']
+    
+    def __str__(self):
+        return f"{self.name} ({self.provider_name}/{self.model_name})"
 
 class EvaluationTask(models.Model):
     """评测任务模型"""
@@ -20,17 +41,36 @@ class EvaluationTask(models.Model):
     
     def __str__(self):
         return self.name
+    
+    def get_dataset_items(self):
+        """Get the dataset items from the source task"""
+        data_filepath = Path(self.source_task.task_dirpath) / 'data.json'
+        with data_filepath.open("r", encoding='utf-8') as f:
+            return json.load(f)
 
 class ModelSelection(models.Model):
     """模型选择"""
     task = models.ForeignKey(EvaluationTask, related_name='models', on_delete=models.CASCADE)
-    provider_name = models.CharField(max_length=100, verbose_name="供应商")
-    model_name = models.CharField(max_length=100, verbose_name="模型名称")
-    api_key = models.CharField(max_length=255, verbose_name="API密钥")
-    base_url = models.CharField(max_length=255, null=True, blank=True, verbose_name="基础URL")
+    configuration = models.ForeignKey(ModelConfiguration, on_delete=models.PROTECT, verbose_name="模型配置")
     
     def __str__(self):
-        return f"{self.provider_name} - {self.model_name}"
+        return f"{self.task.name} - {self.configuration.name}"
+    
+    @property
+    def provider_name(self):
+        return self.configuration.provider_name
+    
+    @property
+    def model_name(self):
+        return self.configuration.model_name
+    
+    @property
+    def api_key(self):
+        return self.configuration.api_key
+    
+    @property
+    def base_url(self):
+        return self.configuration.base_url
 
 class EvaluationResult(models.Model):
     """评测结果"""

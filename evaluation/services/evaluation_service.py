@@ -19,175 +19,51 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 # --- 1. Data Loading ---
 
 class DataLoader:
-    """Loads evaluation tasks from an Excel file."""
-
-    def __init__(self, file_path: str):
-        """
-        Initializes the DataLoader.
-
-        Args:
-            file_path (str): The path to the input Excel file (.xlsx).
-        """
-        self.file_path = file_path
-        logging.info(f"DataLoader initialized for file: {self.file_path}")
-
-    def load_data(self) -> Optional[pd.DataFrame]:
-        """
-        Reads the Excel file into a pandas DataFrame.
-
-        Returns:
-            Optional[pd.DataFrame]: DataFrame containing the tasks, or None if loading fails.
-            The first row of the Excel sheet is expected to be the header.
-        """
+    """Loads data from the source task's data.json file."""
+    
+    def __init__(self, task):
+        self.task = task
+    
+    def load_data(self):
+        """Load data from the source task's data.json file."""
         try:
-            df = pd.read_excel(self.file_path)
-            logging.info(f"Successfully loaded data from {self.file_path}. Shape: {df.shape}")
-            # Basic validation: Check if essential columns might be missing (can be expanded)
-            if not df.empty and 'id' not in df.columns:
-                 logging.warning("Column 'id' not found in the header. Ensure headers match required keys.")
-            return df
-        except FileNotFoundError:
-            logging.error(f"Error: File not found at {self.file_path}")
-            return None
+            data = self.task.get_dataset_items()
+            return data
         except Exception as e:
-            logging.error(f"Error loading data from {self.file_path}: {e}")
+            logging.error(f"Error loading data from task {self.task.task_id}: {str(e)}")
             return None
 
 # --- 2. Data Transformation ---
 
 class DataTransformer:
-    """Transforms raw data from DataFrame rows into structured task dictionaries."""
-
-    def _parse_options(self, options_str: Any) -> Optional[Dict]:
-        """Safely parses the options string into a dictionary."""
-        if not isinstance(options_str, str):
-            logging.warning(f"Options field is not a string: {options_str}. Returning None.")
-            return None
-        try:
-            # Use ast.literal_eval for safe evaluation of Python literals
-            options_dict = ast.literal_eval(options_str)
-            if not isinstance(options_dict, dict):
-                 logging.warning(f"Parsed options is not a dictionary: {options_dict}. Returning None.")
-                 return None
-            return options_dict
-        except (ValueError, SyntaxError, TypeError) as e:
-            logging.warning(f"Could not parse options string: '{options_str}'. Error: {e}. Returning None.")
-            return None
-
-    def _parse_answer(self, answer_str: Any) -> Any:
+    """Transforms raw data from dataset items into structured task dictionaries."""
+    
+    def transform(self, data):
         """
-        Safely parses the answer string into a Python object (list, string, bool).
-        Handles strings representing lists, booleans, or plain strings.
-        """
-        if not isinstance(answer_str, str):
-             # If it's already a non-string type (e.g., boolean read directly by pandas), return it
-             if isinstance(answer_str, (bool, int, float)):
-                 return answer_str
-             logging.warning(f"Answer field is not a string: {answer_str}. Trying to treat as raw value.")
-             # Attempt to return as is, might be NaN or other non-string type from pandas
-             return answer_str
-
-        answer_str = answer_str.strip()
-        # Try parsing as a Python literal first (handles lists, dicts, numbers, booleans, None)
-        try:
-            parsed_value = ast.literal_eval(answer_str)
-            # Ensure booleans represented as strings like "True" are parsed correctly
-            if isinstance(parsed_value, bool):
-                return parsed_value
-            if isinstance(parsed_value, list):
-                 # Ensure elements within the list are appropriate (e.g., strings)
-                 # This basic check assumes simple lists like ['A', 'B']
-                 if all(isinstance(item, (str, int, float, bool)) for item in parsed_value):
-                     return parsed_value
-                 else:
-                     logging.warning(f"Parsed list contains unexpected types: {parsed_value}. Treating original string as answer.")
-                     return answer_str # Fallback to raw string if list content is complex/unexpected
-            # If literal_eval returns a string, return it directly
-            if isinstance(parsed_value, str):
-                 return parsed_value
-
-            # If literal_eval resulted in other types (int, float, dict etc.) that are unexpected for 'answer',
-            # maybe log a warning but return the parsed value. Or decide to fallback.
-            # Return the parsed value for now, assuming it might be valid in some contexts.
-            logging.debug(f"Parsed answer '{answer_str}' into type {type(parsed_value)}: {parsed_value}")
-            return parsed_value
-
-        except (ValueError, SyntaxError):
-            # If literal_eval fails, it's likely a plain string that doesn't look like a literal
-            # (e.g., "A", "Some text answer", potentially "TRUE" without quotes if pandas didn't convert)
-            logging.debug(f"Could not parse answer '{answer_str}' as literal. Treating as plain string.")
-            # Handle potential boolean strings explicitly if literal_eval failed
-            if answer_str.lower() == 'true':
-                return True
-            if answer_str.lower() == 'false':
-                return False
-            # Otherwise, return the stripped string as is
-            return answer_str
-        except Exception as e:
-             logging.warning(f"Unexpected error parsing answer string: '{answer_str}'. Error: {e}. Returning raw string.")
-             return answer_str # Fallback to raw string on unexpected error
-
-
-    def transform(self, df: pd.DataFrame) -> List[Dict[str, Any]]:
-        """
-        Transforms the DataFrame into a list of structured task dictionaries.
-
+        Transforms the data into a list of structured task dictionaries.
+        
         Args:
-            df (pd.DataFrame): The input DataFrame loaded by DataLoader.
-
+            data (List[Dict]): The input data loaded by DataLoader.
+            
         Returns:
             List[Dict[str, Any]]: A list where each dictionary represents a task
-                                  in the desired format. Returns empty list on failure.
+                                in the desired format. Returns empty list on failure.
         """
-        if df is None or df.empty:
-            logging.warning("Input DataFrame is empty or None. Cannot transform data.")
+        if not data:
+            logging.warning("Input data is empty or None. Cannot transform data.")
             return []
-
+        
         processed_tasks = []
-        required_columns = df.columns.tolist() # Assume headers match keys directly
-
-        for index, row in df.iterrows():
-            task_dict = {}
-            valid_task = True
-            for col in required_columns:
-                raw_value = row[col]
-                # Handle potential pandas NaN values
-                if pd.isna(raw_value):
-                   value = None # Or choose another default like empty string ''
-                   logging.debug(f"Found NaN in row {index}, column '{col}'. Setting value to None.")
-                else:
-                   value = raw_value
-
-                if col == 'options':
-                    parsed_options = self._parse_options(value)
-                    if parsed_options is None and value is not None:
-                         logging.warning(f"Failed to parse 'options' for row {index} (ID: {row.get('id', 'N/A')}). Skipping this task or using raw value if needed.")
-                         # Decide if a task is invalid without parseable options
-                         # valid_task = False # Option 1: Skip task if options are critical and unparseable
-                         task_dict[col] = None # Option 2: Keep task but with None options
-                    else:
-                        task_dict[col] = parsed_options
-
-                elif col == 'answer':
-                    task_dict[col] = self._parse_answer(value)
-                else:
-                    # Directly assign other columns, ensure basic types if needed
-                    if isinstance(value, (int, float, bool, str)) or value is None:
-                         task_dict[col] = value
-                    else:
-                         # Attempt to convert other types to string, or handle as needed
-                         task_dict[col] = str(value)
-                         logging.debug(f"Converted non-standard type {type(value)} to string for column '{col}' in row {index}.")
-
-            # Add the processed dictionary to the list if it's considered valid
-            if valid_task:
-                 # Ensure all expected keys are present, even if parsing failed (value might be None)
-                 for expected_key in required_columns:
-                     if expected_key not in task_dict:
-                         task_dict[expected_key] = None # Add missing keys with None value
-                 processed_tasks.append(task_dict)
-                 logging.debug(f"Successfully transformed row {index} (ID: {task_dict.get('id', 'N/A')})")
-
+        
+        for item in data:
+            task_dict = {
+                'text': item.get('text', ''),
+                'ground_truth': item.get('labels', []),  # Use labels as ground truth
+                'id': item.get('id')
+            }
+            processed_tasks.append(task_dict)
+            logging.debug(f"Successfully transformed item {task_dict.get('id', 'N/A')}")
+        
         logging.info(f"Transformation complete. Processed {len(processed_tasks)} tasks.")
         return processed_tasks
 
@@ -533,7 +409,7 @@ class EvaluationRunner:
             llm_response = await provider.client.get_completion(task_data)
 
         # Evaluation happens outside the semaphore lock
-        ground_truth = task_data.get('answer')
+        ground_truth = task_data.get('ground_truth')
         is_correct = None
         if ground_truth is not None:
             is_correct = self.evaluator.evaluate(llm_response, ground_truth, task_id, provider_id)

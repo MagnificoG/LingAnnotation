@@ -148,3 +148,19 @@ CORS_ALLOW_ALL_ORIGINS = True  # 仅在开发环境中使用
 #     "http://localhost:8000",
 #     "http://127.0.0.1:8000",
 # ]
+
+
+# Logging Configuration
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'root': {
+        'handlers': ['console'],
+        'level': 'INFO',
+    },
+}

@@ -9,6 +9,7 @@ from pathlib import Path
 import json
 import zipfile
 import os
+import logging
 
 def task_detail(request, task_id):
     # Fetch the task record from the database using the task_id
@@ -25,18 +26,27 @@ def task_detail(request, task_id):
 def upload_data(request, task_id):
     if request.method == 'POST':
         try:
+            logging.info(f"Starting file upload for task_id: {task_id}")
             # Handle the file upload
             task_record = TaskRecord.objects.get(task_id=task_id)
             task_dir = task_record.task_dirpath
-        
+            logging.info(f"Task directory: {task_dir}")
+
             # Assuming the uploaded file is in request.FILES['file']
-            uploaded_file = request.FILES['file']
-        
+            uploaded_file = request.FILES.get('file')
+            if not uploaded_file:
+                logging.error("No file found in request.FILES")
+                return JsonResponse({'status': 'error', 'message': 'No file uploaded.'})
+            
+            logging.info(f"Uploaded file: {uploaded_file.name}")
+
             # parse the file based on its extension
             parsed_data = utils.parse_file(uploaded_file)
+            logging.info(f"Parsed {len(parsed_data)} items from the uploaded file.")
 
             # Save the parsed data to a file in the task directory
             file_path = Path(task_dir) / 'data.json'
+            logging.info(f"Data file path: {file_path}")
             with file_path.open("r", encoding='utf-8') as f:
                 existing_data: list[dict] = json.load(f)
             max_id = 0
@@ -49,8 +59,10 @@ def upload_data(request, task_id):
             with file_path.open("w", encoding='utf-8') as f:
                 json.dump(existing_data, f, ensure_ascii=False, indent=4)
 
+            logging.info("Successfully saved data to data.json")
             return JsonResponse({'status': 'success'})  # Return a success response after processing the upload
         except Exception as e:
+            logging.error(f"An error occurred during file upload: {e}", exc_info=True)
             return JsonResponse({'status': 'error', 'message': f"文件上传出现错误: {str(e)}"})
     return JsonResponse({'status': 'error', 'message': '只接受POST请求'})
 

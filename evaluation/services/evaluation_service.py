@@ -2,36 +2,50 @@ import pandas as pd
 import ast
 import logging
 import asyncio
+from asgiref.sync import sync_to_async
 from openai import AsyncOpenAI, APIError, RateLimitError
 import os
 import json # For JSON input/output
 from tqdm.asyncio import tqdm as async_tqdm # For progress bar
 import datetime # For timestamped output files
 from typing import List, Dict, Any, Optional, Tuple, Set
+from pathlib import Path
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-# Suppress noisy logs from http connections if needed
-# logging.getLogger("httpcore").setLevel(logging.WARNING)
-# logging.getLogger("httpx").setLevel(logging.WARNING)
-# Configure model
 
 # --- 1. Data Loading ---
 
 class DataLoader:
     """Loads data from the source task's data.json file."""
-    
-    def __init__(self, task):
-        self.task = task
-    
-    def load_data(self):
+
+    def __init__(self, task_id: int, task_dirpath: str):
+        """
+        Initializes the DataLoader with the necessary path information.
+
+        Args:
+            task_id (int): The ID of the evaluation task for logging.
+            task_dirpath (str): The absolute path to the source task's directory.
+        """
+        self.task_id = task_id
+        self.task_dirpath = task_dirpath
+
+    def load_data(self) -> List[Dict[str, Any]]:
         """Load data from the source task's data.json file."""
+        logging.info(f"Attempting to load data for task {self.task_id} from directory {self.task_dirpath}")
         try:
-            data = self.task.get_dataset_items()
+            # Correctly construct the path from the provided directory
+            data_filepath = Path(self.task_dirpath) / 'data.json'
+            with data_filepath.open("r", encoding='utf-8') as f:
+                data = json.load(f)
+            logging.info(f"Successfully loaded data for task {self.task_id}")
             return data
+        except FileNotFoundError:
+            logging.error(f"The file 'data.json' was not found in {self.task_dirpath}", exc_info=True)
+            raise  # Re-raise to be caught by the runner
         except Exception as e:
-            logging.error(f"Error loading data from task {self.task.task_id}: {str(e)}")
-            return None
+            logging.error(f"Error loading data for task {self.task_id}: {str(e)}", exc_info=True)
+            raise  # Re-raise the exception to be caught by the runner
 
 # --- 2. Data Transformation ---
 
@@ -484,28 +498,38 @@ class EvaluationRunner:
         return self.results
 
 
-    def run_evaluation(self) -> Tuple[Optional[Dict[str, float]], List[Dict[str, Any]]]:
+    async def run_evaluation(self) -> Tuple[Optional[Dict[str, float]], List[Dict[str, Any]]]:
         """
-        Synchronous entry point that loads data and runs the async processing.
+        Asynchronous entry point that loads data and runs the async processing.
 
         Returns:
             Tuple[Optional[Dict[str, float]], List[Dict[str, Any]]]:
                 - Dictionary of accuracy per provider identifier, or None.
                 - The final list of detailed results.
         """
-        # 1. Load & Transform Data
-        raw_data = self.data_loader.load_data()
-        if raw_data is None or 'id' not in raw_data.columns: return None, []
+        # 1. Load & Transform Data (still synchronous)
+        try:
+            raw_data = self.data_loader.load_data()
+        except Exception as e:
+            # Use task_id from data_loader for logging
+            logging.error(f"Error loading raw_data for task {self.data_loader.task_id}: {str(e)}")
+            return None, []
+        if raw_data is None:
+            logging.error("Failed to load data, stopping evaluation.")
+            return None, []
+        
         self.all_tasks_data = self.data_transformer.transform(raw_data)
-        if not self.all_tasks_data: return None, []
+        if not self.all_tasks_data:
+            logging.warning("Data transformation resulted in no tasks.")
+            return None, []
 
         # 2. Load Previous Results
         self._load_previous_results()
 
         # 3. Run Async Processing Loop
-        # asyncio.run() starts the event loop and executes the coroutine
-        final_results = asyncio.run(self._process_tasks_async())
-        self.results = final_results # Update self.results with the final list
+        # This is now awaited by the caller's event loop
+        final_results = await self._process_tasks_async()
+        self.results = final_results  # Update self.results with the final list
 
         # 4. Calculate Final Accuracy (Per Provider)
         provider_stats = {provider.get_identifier(): {'correct': 0, 'evaluated': 0} for provider in self.providers}
@@ -537,102 +561,3 @@ class EvaluationRunner:
         logging.info(f"Detailed results saved to: {self.output_json_path}")
 
         return accuracies if accuracies else None, self.results
-    
-# --- Example Usage ---
-
-if __name__ == "__main__":
-    # Create Dummy Excel
-    excel_file_path = "llm_eval_tasks_async.xlsx"
-    # (Use the same data structure as the previous example, ensuring unique IDs)
-    data = {
-        'id': [f"task_{i:02d}" for i in range(1, 9)], # Generate unique IDs
-        'instruction': ["Choose all correct options keys.", "Select the single best answer key.", "Is the statement true? Answer 'True' or 'False'.", "Multiple answers allowed. Provide keys as a Python list.", "Instruction E", "Instruction F", "What is 2+2? Provide just the number.", "Select the matching key for 'apple'"],
-        'text': ["Context A: Vowels are A, E, I, O, U.", "Context B: Paris is capital of France.", "Context C: Sky is blue.", "Context D: Primary colors are Red, Yellow, Blue.", "Context E...", "Context F...", "Math context", "Fruit context"],
-        'question': ["Which letters are vowels?", "What is the capital of France?", "Is the sky blue?", "Which are primary colors?", "Question E?", "Question F?", "Calculate", "Which option is 'apple'?"],
-        'options': [ "{'A': 'A', 'B': 'B', 'C': 'E', 'D': 'F'}", "{'A': 'Paris', 'B': 'London'}", "{'True': 'Yes', 'False': 'No'}", "{'A': 'Red', 'B': 'Green', 'C': 'Blue', 'D': 'Yellow'}", "{'A': Correct", "{'A': 'Option A'}", "{}", "{'X': 'orange', 'Y': 'apple'}" ],
-        'answer': [ "['A', 'C']", "A", "True", "['A', 'C', 'D']", "A", None, "4", 'Y' ]
-    }
-    try:
-        pd.DataFrame(data).to_excel(excel_file_path, index=False)
-        logging.info(f"Created/Overwritten dummy Excel file: {excel_file_path}")
-    except Exception as e:
-        logging.error(f"Could not create dummy excel file: {e}")
-        exit()
-
-    # --- Configure Providers ---
-    # Ensure API keys are set as environment variables
-    # Provider 1: DeepSeek (using the compatible endpoint)
-    deepseek_api_key = os.getenv("DEEPSEEK_API_KEY")
-    # Provider 2: Example - Qwen (replace with actual key if using)
-    qwen_api_key = os.getenv("QWEN_API_KEY")
-
-    providers_to_run = []
-    if deepseek_api_key:
-         try:
-             providers_to_run.append(LLMProvider(provider_name="DeepSeek",
-                                                model_name="deepseek-chat",
-                                                api_key=deepseek_api_key,
-                                                base_url="https://api.deepseek.com")) # Specify base URL
-         except Exception as e:
-              logging.error(f"Failed to initialize DeepSeek provider: {e}")
-    else:
-        logging.warning("DEEPSEEK_API_KEY not found in environment. Skipping DeepSeek provider.")
-
-    if qwen_api_key:
-         try:
-             providers_to_run.append(LLMProvider(provider_name="Qwen",
-                                                model_name="qwen-plus", # Example model
-                                                api_key=qwen_api_key,
-                                                base_url="https://dashscope.aliyuncs.com/compatible-mode/v1")) # Default OpenAI URL
-         except Exception as e:
-              logging.error(f"Failed to initialize Qwen provider: {e}")
-    else:
-        logging.warning("QWEN_API_KEY not found in environment. Skipping provider.")
-
-
-    if not providers_to_run:
-        logging.error("No LLM providers could be configured. API keys might be missing. Exiting.")
-        exit()
-
-    logging.info(f"Configured to run with {len(providers_to_run)} provider(s).")
-
-    # --- Instantiate Components ---
-    data_loader = DataLoader(excel_file_path)
-    data_transformer = DataTransformer()
-    evaluator = Evaluator()
-
-    # --- Configure and Run Evaluation ---
-    results_output_file = "multi_provider_evaluation.json"
-    save_interval = 10 # Save results every 10 completed task/provider pairs
-    max_concurrent_requests = 5 # Limit concurrent requests per provider endpoint rules
-
-    runner = EvaluationRunner(data_loader, data_transformer, providers_to_run, evaluator,
-                              output_json_path=results_output_file,
-                              checkpoint_interval=save_interval,
-                              concurrency_limit=max_concurrent_requests)
-
-    # Run the evaluation (synchronous call that manages async internally)
-    provider_accuracies, detailed_results = runner.run_evaluation()
-
-    # --- Access Outputs ---
-    print("\n--- Final Accuracy Summary ---")
-    if provider_accuracies:
-        for provider_id, acc in provider_accuracies.items():
-            print(f"  Provider {provider_id}: {acc:.2%}")
-    else:
-        print("  Accuracy could not be calculated (no tasks evaluated).")
-
-    print(f"\nDetailed results saved in: {runner.output_json_path}")
-
-    # Optionally print summary of final results in memory
-    print("\nSummary of First Few Results:")
-    if not detailed_results:
-         print("  No results available.")
-    else:
-         for result in detailed_results[:5]: # Print first few
-             provider_id = result.get('provider_identifier', 'N/A')
-             task_id = result.get('task_id', 'N/A')
-             correct_status = 'N/A (No GT)' if result.get('is_correct') is None else ('CORRECT' if result.get('is_correct') else 'INCORRECT')
-             print(f"  Task: {task_id} ({provider_id}) -> Correct: {correct_status}, Resp: {result.get('llm_response')}")
-         if len(detailed_results) > 5:
-              print(f"  ... and {len(detailed_results) - 5} more results stored.")

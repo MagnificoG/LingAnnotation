@@ -42,11 +42,6 @@ class EvaluationTask(models.Model):
     def __str__(self):
         return self.name
     
-    def get_dataset_items(self):
-        """Get the dataset items from the source task"""
-        data_filepath = Path(self.source_task.task_dirpath) / 'data.json'
-        with data_filepath.open("r", encoding='utf-8') as f:
-            return json.load(f)
 
 class ModelSelection(models.Model):
     """模型选择"""

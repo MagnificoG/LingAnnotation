@@ -26,6 +26,10 @@ import os
 import uuid
 import threading
 import json
+import asyncio
+
+from asgiref.sync import sync_to_async
+
 
 from .services.evaluation_service import (
     DataLoader,
@@ -115,18 +119,30 @@ class EvaluationTaskViewSet(viewsets.ModelViewSet):
         task.save()
         
         # 在后台线程中运行评测
-        threading.Thread(target=self._run_evaluation, args=(task,)).start()
+        # Pre-fetch the task directory path in the synchronous part
+        source_task_dirpath = task.source_task.task_dirpath
+        
+        # Pass the directory path instead of the entire task object
+        threading.Thread(target=self._run_evaluation, args=(task, source_task_dirpath)).start()
         
         return Response({"message": "评测任务已启动"})
     
-    def _run_evaluation(self, task):
+    def _run_evaluation(self, task, source_task_dirpath: str):
         try:
-            # 准备评测所需的组件
-            data_loader = DataLoader(task)
+            # Pass the task_id and pre-fetched directory path to the DataLoader
+            data_loader = DataLoader(task_id=task.pk, task_dirpath=source_task_dirpath)
             data_transformer = DataTransformer()
             evaluator = Evaluator()
-            
-            # 准备LLM提供商
+        except Exception as e:
+            task.status = 'failed'
+            task.save()
+            print(f"评测任务 {task.task_id} 在 ETL 阶段失败: {str(e)}")
+
+        # Create a new event loop for the background thread
+        loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(loop)
+
+        try:
             providers = []
             for model in task.models.all():
                 provider = LLMProvider(
@@ -137,15 +153,11 @@ class EvaluationTaskViewSet(viewsets.ModelViewSet):
                 )
                 providers.append(provider)
             
-            # 设置结果文件路径
             timestamp = timezone.now().strftime("%Y%m%d_%H%M%S")
             result_filename = f"evaluation_results_{task.task_id}_{timestamp}.json"
             result_path = os.path.join(settings.MEDIA_ROOT, 'evaluation_results', result_filename)
-            
-            # 确保目录存在
             os.makedirs(os.path.dirname(result_path), exist_ok=True)
-            
-            # 创建并运行评测
+
             runner = EvaluationRunner(
                 data_loader=data_loader,
                 data_transformer=data_transformer,
@@ -156,10 +168,10 @@ class EvaluationTaskViewSet(viewsets.ModelViewSet):
                 concurrency_limit=5
             )
             
-            # 运行评测并获取结果
-            provider_accuracies, detailed_results = runner.run_evaluation()
-            
-            # 更新任务状态和结果
+            # Run the coroutine in the event loop and wait for completion
+            provider_accuracies, detailed_results = loop.run_until_complete(runner.run_evaluation())
+
+            # Update task status and results
             task.status = 'completed'
             task.completed_at = timezone.now()
             task.result_file = f"evaluation_results/{result_filename}"

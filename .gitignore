@@ -177,3 +177,6 @@ cython_debug/
 task_dir/
 migrations/
 media/
+
+# Roo code
+.roo/

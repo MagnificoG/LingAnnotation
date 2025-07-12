@@ -6,11 +6,31 @@ from listing.models import TaskRecord
 from django.http import HttpResponse, JsonResponse, FileResponse
 from django.views.decorators.csrf import ensure_csrf_cookie
 from pathlib import Path
+from django.shortcuts import redirect
+from django.views.generic import DetailView
+from .models import DynamicTable
+from .forms import UploadFileForm
+from .models import DynamicTable
+from .utils import parse_tabular_file
+
 import json
 import zipfile
 import os
 import logging
 
+class TableDetailView(DetailView):
+    model = DynamicTable
+    template_name = 'details/table_detail.html'
+    context_object_name = 'table'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        table = self.get_object()
+        columns, data = table.get_table_data()
+        context['columns'] = columns
+        context['data'] = data
+        return context
+    
 def task_detail(request, task_id):
     # Fetch the task record from the database using the task_id
     task_record = TaskRecord.objects.get(task_id=task_id)
@@ -47,17 +67,18 @@ def upload_data(request, task_id):
             # Save the parsed data to a file in the task directory
             file_path = Path(task_dir) / 'data.json'
             logging.info(f"Data file path: {file_path}")
-            with file_path.open("r", encoding='utf-8') as f:
-                existing_data: list[dict] = json.load(f)
-            max_id = 0
-            for item in existing_data:
-                if item[config.ID] > max_id:
-                    max_id = item[config.ID]
-            for i, item in enumerate(parsed_data, start=max_id):
-                item[config.ID] = i + 1
-            existing_data.extend(parsed_data)
+            # Handling existing data. Commented for now.
+            # with file_path.open("r", encoding='utf-8') as f:
+            #     existing_data: list[dict] = json.load(f)
+            # max_id = 0
+            # for item in existing_data:
+            #     if item[config.ID] > max_id:
+            #         max_id = item[config.ID]
+            # for i, item in enumerate(parsed_data, start=max_id):
+            #     item[config.ID] = i + 1
+            # existing_data.extend(parsed_data)
             with file_path.open("w", encoding='utf-8') as f:
-                json.dump(existing_data, f, ensure_ascii=False, indent=4)
+                json.dump(parsed_data, f, ensure_ascii=False, indent=4)
 
             logging.info("Successfully saved data to data.json")
             return JsonResponse({'status': 'success'})  # Return a success response after processing the upload
@@ -155,3 +176,19 @@ def delete_task_item(request):
         except Exception as e:
             return JsonResponse({'status': 'error', 'message': f"删除条目失败: {str(e)}"})
     return JsonResponse({'status': 'error', 'message': '只接受POST请求'})
+
+def upload_table(request, task_id):
+    if request.method == 'POST':
+        form = UploadFileForm(request.POST, request.FILES)
+        if form.is_valid():
+            file = request.FILES['file']
+            try:
+                json_data = parse_tabular_file(file)
+                table_name = Path(file.name).stem
+                table = DynamicTable.objects.create(name=table_name, json_data=json_data)
+                return redirect('details:table-detail', pk=table.pk)
+            except ValueError as e:
+                form.add_error('file', str(e))
+    else:
+        form = UploadFileForm()
+    return render(request, 'details/upload_table.html', {'form': form})

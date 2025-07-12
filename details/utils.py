@@ -7,6 +7,10 @@ from . import config
 import json
 from pathlib import Path
 from typing import List, Dict
+import pandas as pd
+import logging
+
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 
 def parse_txt(file) -> List[Dict]:
     lines: list[str] = file.read().decode('utf-8').splitlines()
@@ -21,15 +25,25 @@ def parse_txt(file) -> List[Dict]:
     ]
     return data
 
-def parse_json(file) -> List[Dict]:
-    rawdata = file.read().decode('utf-8')
-    parsed_data = json.loads(rawdata)
-    # 验证输入数据的合法性
-    assert isinstance(parsed_data, list), "数据格式错误，应该是一个列表"
-    for item in parsed_data:
-        assert isinstance(item, dict), "数据格式错误，列表中的每个元素应该是一个字典"
-        assert all(key in item for key in [config.TEXT, config.TAGS, config.LABELS, config.RELATIONS]), "数据格式错误，缺少必要的字段"
-    return parsed_data
+def parse_tabular_file(file) -> str:
+    """Parse tabular data from a file into a JSON string."""
+    suffix = Path(file.name).suffix.lower()
+    
+    if suffix == '.csv':
+        df = pd.read_csv(file)
+    elif suffix in ['.xls', '.xlsx']:
+        df = pd.read_excel(file)
+        logging.info(f"Excel file parsed with {len(df)} rows and {len(df.columns)} columns.")
+        logging.info(f"First 5 rows:\n{df.head()}")
+    elif suffix == '.json':
+        df = pd.read_json(file)
+    else:
+        raise ValueError(f"Unsupported file type: {suffix}")
+    
+    records = df.to_json(orient='records')
+    # parsed_json = json.loads(records)
+    
+    return records
 
 def parse_file(file) -> List[Dict]:
     """根据文件后缀名解析数据
@@ -43,7 +57,10 @@ def parse_file(file) -> List[Dict]:
     suffix = Path(file.name).suffix.lower()
     if suffix == '.txt':
         return parse_txt(file)
-    elif suffix == '.json':
-        return parse_json(file)
+    elif suffix in ['.csv', '.xls', '.xlsx', '.json']:
+        # This will now return a JSON string for tabular data,
+        # which is not ideal for the old upload_data view.
+        # This discrepancy will be resolved when we implement the new views.
+        return parse_tabular_file(file)
     else:
         raise ValueError(f"Unsupported file type: {suffix}")

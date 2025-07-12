@@ -159,7 +159,7 @@
         // 打开一个文件选择对话框，让用户选择文件，支持json格式和txt格式
         const fileInput = document.createElement('input');
         fileInput.type = 'file';
-        fileInput.accept = '.json, .txt';
+        fileInput.accept = '.json, .txt, .csv, .xlsx'; // 支持的文件格式
         fileInput.style.display = 'none';
         document.body.appendChild(fileInput);
         fileInput.click();

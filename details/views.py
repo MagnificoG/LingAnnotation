@@ -67,7 +67,7 @@ def upload_data(request, task_id):
             # Save the parsed data to a file in the task directory
             file_path = Path(task_dir) / 'data.json'
             logging.info(f"Data file path: {file_path}")
-            # Handling existing data. Commented for now.
+            # Handling existing data. Commented, as this is felt to be unnecessary.
             # with file_path.open("r", encoding='utf-8') as f:
             #     existing_data: list[dict] = json.load(f)
             # max_id = 0

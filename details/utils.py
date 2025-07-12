@@ -41,9 +41,9 @@ def parse_tabular_file(file) -> str:
         raise ValueError(f"Unsupported file type: {suffix}")
     
     records = df.to_json(orient='records')
-    # parsed_json = json.loads(records)
+    parsed_json = json.loads(records)
     
-    return records
+    return parsed_json
 
 def parse_file(file) -> List[Dict]:
     """根据文件后缀名解析数据

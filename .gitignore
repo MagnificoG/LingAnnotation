@@ -179,4 +179,4 @@ migrations/
 media/
 
 # Roo code
-.roo/
+/.roo

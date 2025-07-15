@@ -4,6 +4,7 @@
 ## 运行帮助
 若使用 `uv`，请在将项目克隆到本地后，执行以下命令在本地 `8000` 端口上运行服务器：
 ```bash
+uv sync # 非必须
 uv run manage.py makemigrations listing evaluation
 uv run manage.py migrate
 uv run manage.py runserver

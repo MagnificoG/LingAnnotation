@@ -2,17 +2,47 @@ import pandas as pd
 import ast
 import logging
 import asyncio
-from asgiref.sync import sync_to_async
 from openai import AsyncOpenAI, APIError, RateLimitError
 import os
-import json # For JSON input/output
-from tqdm.asyncio import tqdm as async_tqdm # For progress bar
-import datetime # For timestamped output files
+import json
+from tqdm.asyncio import tqdm as async_tqdm
+import datetime
 from typing import List, Dict, Any, Optional, Tuple, Set
 from pathlib import Path
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+class TqdmLoggingHandler(logging.Handler):
+    """
+    A custom logging handler that redirects logs to tqdm.tqdm.write().
+    This prevents log messages from interfering with the progress bar.
+    """
+    def emit(self, record):
+        try:
+            # Format the log record into a string
+            msg = self.format(record)
+            # Use tqdm's own write function to print the message
+            async_tqdm.write(msg)
+            # Ensure the output is flushed immediately
+            self.flush()
+        except Exception:
+            self.handleError(record)
+
+# 1. Get the root logger
+log = logging.getLogger()
+log.setLevel(logging.INFO)  # Set the desired log level (e.g., INFO or DEBUG)
+
+# 2. Create an instance of our custom handler
+tqdm_handler = TqdmLoggingHandler()
+
+# 3. Create a formatter to define the log message format
+formatter = logging.Formatter("%(asctime)s - %(levelname)s - %(message)s")
+tqdm_handler.setFormatter(formatter)
+
+# 4. Remove any existing handlers and add our new Tqdm handler
+# This is important to avoid duplicate logs if the script is run in an environment
+# (like a Jupyter notebook) that might have pre-configured handlers.
+if log.hasHandlers():
+    log.handlers.clear()
+log.addHandler(tqdm_handler)
 
 # --- 1. Data Loading ---
 

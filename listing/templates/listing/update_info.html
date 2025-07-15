@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>修改任务详情 - 语言学数据标注平台</title>
+    <link rel="stylesheet" href="https://cdn.bootcdn.net/ajax/libs/twitter-bootstrap/4.6.0/css/bootstrap.min.css">
+    <link rel="stylesheet" href="https://cdn.datatables.net/1.10.25/css/dataTables.bootstrap4.min.css">
+    <style>
+        .spinner-border {
+            vertical-align: middle;
+            margin-right: 5px;
+        }
+
+        .mt-1 {
+            margin-top: 0.25rem;
+        }
+
+        .card {
+            box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.15);
+            margin-bottom: 1.5rem;
+        }
+
+        .input-group-text {
+            background-color: #f8f9fa;
+        }
+
+        .form-control-lg {
+            min-height: 150px;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container mt-4">
+        <div class="card">
+            <div class="card-header d-flex justify-content-between align-items-center">
+                <h5 class="mb-0">任务详情修改</h5>
+            </div>
+            <div class="card-body">
+                <form id="taskForm">
+                    <div class="form-group">
+                        <label for="taskName">任务名称（不超过200字）</label>
+                        <input type="text" class="form-control" id="taskName" placeholder={{ task_name }} maxlength="200" required style="font-size: 16px;">
+                    </div>
+                    <div class="form-group">
+                        <label for="taskDescription">任务描述</label>
+                        <textarea class="form-control form-control-lg" id="taskDescription" placeholder={{ task_description }} rows="5" style="font-size: 16px;"></textarea>
+                    </div>
+                    <div class="d-flex justify-content-end mt-4">
+                        <button type="button" class="btn btn-danger mr-2" onclick="cancelTask()">取消</button>
+                        <button type="button" class="btn btn-success" onclick="submitTask()">确定</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="https://cdn.datatables.net/1.10.25/js/jquery.dataTables.min.js"></script>
+    <script src="https://cdn.datatables.net/1.10.25/js/dataTables.bootstrap4.min.js"></script>
+    <script>
+        // 提交任务
+        function submitTask() {
+            const taskName = $('#taskName').val().trim();
+            const taskDescription = $('#taskDescription').val().trim();
+            
+            // 验证表单
+            if (!taskName) {
+                alert('请输入任务名称');
+                return;
+            }
+            
+            // 显示加载状态
+            const submitBtn = $('button.btn-success');
+            const originalText = submitBtn.html();
+            submitBtn.prop('disabled', true).html('<span class="spinner-border spinner-border-sm"></span> 提交中...');
+            
+            // 发送请求
+            $.ajax({
+                url: '/listing/{{ task_id }}/edit/',
+                method: 'POST',
+                headers: {
+                    "X-CSRFToken": getCookie("csrftoken"),
+                    "Content-Type": "application/json"
+                },
+                data: JSON.stringify({
+                    task_name: taskName,
+                    task_description: taskDescription
+                }),
+                success: function(response) {
+                    if (response.status === 'success') {
+                        alert('任务详情修改成功');
+                        window.location.href = '/';
+                    } else {
+                        alert('详情修改失败: ' + response.message);
+                    }
+                },
+                error: function() {
+                    alert('详情修改失败，请检查网络连接');
+                },
+                complete: function() {
+                    submitBtn.prop('disabled', false).html(originalText);
+                }
+            });
+        }
+        
+        // 取消详情修改任务
+        function cancelTask() {
+            if (confirm('确定要取消任务信息修改吗？所有已填写的内容将丢失。')) {
+                window.location.href = '/';
+            }
+        }
+        
+        // 获取CSRF令牌
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== '') {
+                const cookies = document.cookie.split(';');
+                for (let i = 0; i < cookies.length; i++) {
+                    const cookie = cookies[i].trim();
+                    if (cookie.substring(0, name.length + 1) === (name + '=')) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+    </script>
+</body>
+</html>

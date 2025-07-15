@@ -23,7 +23,7 @@ python manage.py runserver
 
 ## 其他说明
 
-本程序更详细的功能说明提供于相应的实验报告中。
+本程序对输入数据格式的要求较之 LingAnnotation 的原分支更为简易，要求在一个格式为 `json` 或 `xlsx` 的数据文件中提供 `Question` 和 `Answer` 两个字段。更详细的功能说明提供于相应的实验报告中。
 
 ## 环境
 Python版本：[3.7.8](https://www.python.org/downloads/release/python-378/)
